@@ -3,9 +3,7 @@ package com.fongmi.android.tv.player;
 import static androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON;
 import static androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER;
 
-import android.content.Context;
 import android.content.Intent;
-import android.media.AudioManager;
 import android.net.Uri;
 import android.text.TextUtils;
 
@@ -36,7 +34,6 @@ import com.fongmi.android.tv.event.ErrorEvent;
 import com.fongmi.android.tv.event.PlayerEvent;
 import com.fongmi.android.tv.impl.ParseCallback;
 import com.fongmi.android.tv.player.danmaku.DanPlayer;
-import com.fongmi.android.tv.player.exo.ErrorMsgProvider;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.player.exo.TrackUtil;
 import com.fongmi.android.tv.server.Server;
@@ -67,8 +64,6 @@ public class Players implements Player.Listener, ParseCallback {
     private final PlaybackParams params;
     private final SpeedController speedCtrl;
     private final SharingHelper sharingHelper;
-    private final ErrorMsgProvider provider;
-    private final AudioManager audioManager;
     private final StringBuilder builder;
     private final Formatter formatter;
     private final Runnable runnable;
@@ -77,7 +72,6 @@ public class Players implements Player.Listener, ParseCallback {
     private DanPlayer danPlayer;
     private ParseJob parseJob;
     private PlayerView view;
-    private VideoSize size;
     private String tag;
 
     private boolean initTrack;
@@ -94,12 +88,10 @@ public class Players implements Player.Listener, ParseCallback {
         decode = HARD;
         params = new PlaybackParams();
         builder = new StringBuilder();
-        provider = new ErrorMsgProvider();
         speedCtrl = new SpeedController();
         sharingHelper = new SharingHelper(this);
         runnable = () -> ErrorEvent.timeout(tag);
         formatter = new Formatter(builder, Locale.getDefault());
-        audioManager = (AudioManager) App.get().getSystemService(Context.AUDIO_SERVICE);
     }
 
     public void init(PlayerView view) {
@@ -194,11 +186,11 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public int getVideoWidth() {
-        return size == null ? 0 : size.width;
+        return exoPlayer == null ? 0 : exoPlayer.getVideoSize().width;
     }
 
     public int getVideoHeight() {
-        return size == null ? 0 : size.height;
+        return exoPlayer == null ? 0 : exoPlayer.getVideoSize().height;
     }
 
     public float getSpeed() {
@@ -499,7 +491,6 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onIsPlayingChanged(boolean isPlaying) {
-        if (isPlaying() && audioManager != null && audioManager.getMode() == AudioManager.MODE_IN_COMMUNICATION) pause();
         PlayerEvent.playing(tag);
         ActionEvent.update();
     }
@@ -511,7 +502,6 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onVideoSizeChanged(@NonNull VideoSize videoSize) {
-        this.size = videoSize;
         PlayerEvent.size(tag);
     }
 
@@ -525,7 +515,7 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onPlayerError(@NonNull PlaybackException e) {
-        if (++retry > 2) ErrorEvent.extract(tag, provider.get(e));
+        if (++retry > 2) ErrorEvent.extract(tag, e.getErrorCodeName());
         else switch (e.errorCode) {
             case PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW:
                 seekToDefaultPosition();
@@ -543,7 +533,7 @@ public class Players implements Player.Listener, ParseCallback {
                 setFormat(ExoUtil.getMimeType(e.errorCode));
                 break;
             default:
-                ErrorEvent.extract(tag, provider.get(e));
+                ErrorEvent.extract(tag, e.getErrorCodeName());
                 break;
         }
     }
