@@ -63,7 +63,7 @@ public class Players implements Player.Listener, ParseCallback {
     private final SharingHelper sharingHelper;
     private final StringBuilder builder;
     private final Formatter formatter;
-    private final Runnable runnable;
+    private final Runnable timeoutRunnable;
 
     private PlayerListener listener;
     private ExoPlayer exoPlayer;
@@ -71,7 +71,7 @@ public class Players implements Player.Listener, ParseCallback {
     private ParseJob parseJob;
     private PlayerView view;
 
-    private boolean initTrack;
+    private boolean trackInitialized;
     private int decode;
     private int retry;
 
@@ -87,7 +87,7 @@ public class Players implements Player.Listener, ParseCallback {
         builder = new StringBuilder();
         speedCtrl = new SpeedController();
         sharingHelper = new SharingHelper(this);
-        runnable = () -> { if (listener != null) listener.onError(ResUtil.getString(R.string.error_play_timeout)); };
+        timeoutRunnable = () -> { if (listener != null) listener.onError(ResUtil.getString(R.string.error_play_timeout)); };
         formatter = new Formatter(builder, Locale.getDefault());
     }
 
@@ -128,11 +128,11 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public List<Danmaku> getDanmakus() {
-        return params.danmakus;
+        return params.getDanmakus();
     }
 
     public String getUrl() {
-        return params.url;
+        return params.getUrl();
     }
 
     public Map<String, String> getHeaders() {
@@ -140,12 +140,12 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public void setSub(Sub sub) {
-        params.sub = sub;
+        params.setSub(sub);
         setMediaItem();
     }
 
     public void setFormat(String format) {
-        params.format = format;
+        params.setFormat(format);
         setMediaItem();
     }
 
@@ -331,7 +331,6 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void stop() {
         if (exoPlayer != null) exoPlayer.stop();
-        if (danPlayer != null) danPlayer.stop();
         stopParse();
     }
 
@@ -351,7 +350,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     private void removeTimeoutCheck() {
-        App.removeCallbacks(runnable);
+        App.removeCallbacks(timeoutRunnable);
     }
 
     public void start(Result result, boolean useParse, long timeout) {
@@ -370,10 +369,7 @@ public class Players implements Player.Listener, ParseCallback {
 
     private void startParse(Result result, boolean useParse) {
         stopParse();
-        params.drm = result.getDrm();
-        params.subs = result.getSubs();
-        params.format = result.getFormat();
-        params.danmakus = result.getDanmaku();
+        params.setParse(result.getFormat(), result.getDrm(), result.getSubs(), result.getDanmaku());
         parseJob = ParseJob.create(this).start(result, useParse);
     }
 
@@ -383,7 +379,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public void setMediaItem() {
-        if (params.url != null) setMediaItem(params.headers, params.url, params.format, params.drm, params.subs, params.danmakus, Constant.TIMEOUT_PLAY);
+        if (!params.isEmpty()) setMediaItem(params.getHeaders(), params.getUrl(), params.getFormat(), params.getDrm(), params.getRawSubs(), params.getDanmakus(), Constant.TIMEOUT_PLAY);
     }
 
     public void setMediaItem(String url) {
@@ -391,7 +387,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     private void setMediaItem(Map<String, String> headers, String url) {
-        setMediaItem(headers, url, params.format, params.drm, params.subs, params.danmakus, Constant.TIMEOUT_PLAY);
+        setMediaItem(headers, url, params.getFormat(), params.getDrm(), params.getRawSubs(), params.getDanmakus(), Constant.TIMEOUT_PLAY);
     }
 
     private void setMediaItem(Result result, long timeout) {
@@ -399,26 +395,20 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     private void setMediaItem(Map<String, String> headers, String url, String format, Drm drm, List<Sub> subs, List<Danmaku> danmakus, long timeout) {
-        params.headers = params.checkUa(headers);
-        params.url = url;
-        params.format = format;
-        params.drm = drm;
-        params.subs = subs;
-        params.danmakus = danmakus;
-        if (exoPlayer != null) exoPlayer.setMediaItem(ExoUtil.getMediaItem(params.headers, UrlUtil.uri(url), format, drm, params.checkSub(subs), decode, params.buildMediaMetadata()));
-        Logger.t(TAG).d("headers=%s\nurl=%s\nformat=%s\ndrm=%s\nsubs=%s\ndanmakus=%s\ntimeout=%s", params.headers, url, format, drm, params.subs, danmakus, timeout);
+        params.setMedia(headers, url, format, drm, subs, danmakus);
+        if (exoPlayer != null) exoPlayer.setMediaItem(ExoUtil.getMediaItem(params.getHeaders(), UrlUtil.uri(url), format, drm, params.checkSub(subs), decode, params.buildMediaMetadata()));
+        Logger.t(TAG).d("headers=%s\nurl=%s\nformat=%s\ndrm=%s\nsubs=%s\ndanmakus=%s\ntimeout=%s", params.getHeaders(), url, format, drm, params.getRawSubs(), danmakus, timeout);
         if (danPlayer != null) setDanmaku(danmakus == null || danmakus.isEmpty() ? Danmaku.empty() : danmakus.get(0));
-        App.post(runnable, timeout);
+        App.post(timeoutRunnable, timeout);
         if (listener != null) listener.onPrepare();
-        initTrack = false;
+        trackInitialized = false;
         prepare();
     }
 
     public void setDanmaku(Danmaku item) {
+        if (danPlayer == null) return;
         danPlayer.setDanmaku(item);
-        if (params.danmakus == null) params.danmakus = new ArrayList<>();
-        if (!item.isEmpty() && !params.danmakus.contains(item)) params.danmakus.add(0, item);
-        params.danmakus.forEach(d -> d.setSelected(d.getUrl().equals(item.getUrl())));
+        params.applyDanmaku(item);
     }
 
     public void setDanmakuSize(float size) {
@@ -498,10 +488,10 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onTracksChanged(@NonNull Tracks tracks) {
-        if (tracks.isEmpty() || initTrack) return;
+        if (tracks.isEmpty() || trackInitialized) return;
         setTrack(Track.find(getKey()));
         if (listener != null) listener.onTrack();
-        initTrack = true;
+        trackInitialized = true;
     }
 
     @Override

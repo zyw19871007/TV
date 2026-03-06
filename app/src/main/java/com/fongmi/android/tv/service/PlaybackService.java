@@ -25,14 +25,19 @@ import java.util.List;
 
 public class PlaybackService extends MediaSessionService {
 
+    // Holds the ExoPlayer only during service startup (until onCreate() fires).
+    // After createMediaSession(), this is cleared — use mediaSession.getPlayer() instead.
+    private static ExoPlayer pendingPlayer;
     private static PlaybackService instance;
-    private static ExoPlayer exoPlayer;
     private MediaSession mediaSession;
 
     public static void start(ExoPlayer player) {
-        exoPlayer = player;
-        ContextCompat.startForegroundService(App.get(), new Intent(App.get(), PlaybackService.class));
-        if (instance != null) instance.recreateSession();
+        if (instance != null) {
+            instance.updateSession(player);
+        } else {
+            pendingPlayer = player;
+            ContextCompat.startForegroundService(App.get(), new Intent(App.get(), PlaybackService.class));
+        }
     }
 
     public static void stop() {
@@ -49,22 +54,27 @@ public class PlaybackService extends MediaSessionService {
                 .setNotificationId(Notify.ID)
                 .build()
         );
-        if (exoPlayer != null) createMediaSession();
+        if (pendingPlayer != null) {
+            createMediaSession(pendingPlayer);
+            pendingPlayer = null;
+        }
     }
 
-    private void createMediaSession() {
-        mediaSession = new MediaSession.Builder(this, exoPlayer)
+    private void createMediaSession(ExoPlayer player) {
+        mediaSession = new MediaSession.Builder(this, player)
             .setCallback(new SessionCallbackImpl())
             .build();
     }
 
-    private void recreateSession() {
-        if (mediaSession != null) {
-            if (mediaSession.getPlayer() == exoPlayer) return;
-            mediaSession.release();
-            mediaSession = null;
+    private void updateSession(ExoPlayer player) {
+        if (mediaSession == null) {
+            createMediaSession(player);
+            return;
         }
-        if (exoPlayer != null) createMediaSession();
+        if (mediaSession.getPlayer() == player) return;
+        mediaSession.release();
+        mediaSession = null;
+        createMediaSession(player);
     }
 
     @Nullable
@@ -75,7 +85,7 @@ public class PlaybackService extends MediaSessionService {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        if (exoPlayer == null || !exoPlayer.isPlaying()) stopSelf();
+        if (mediaSession == null || !mediaSession.getPlayer().isPlaying()) stopSelf();
     }
 
     @Override

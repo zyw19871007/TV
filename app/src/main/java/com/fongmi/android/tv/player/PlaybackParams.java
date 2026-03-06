@@ -74,6 +74,40 @@ public class PlaybackParams {
         metaArtUri = artUri;
     }
 
+    // ---- package-private setters (used only within player package) ----
+
+    void setMedia(Map<String, String> headers, String url, String format, Drm drm, List<Sub> subs, List<Danmaku> danmakus) {
+        this.headers = checkUa(headers);
+        this.url = url;
+        this.format = format;
+        this.drm = drm;
+        this.subs = subs;
+        this.danmakus = danmakus;
+    }
+
+    void setParse(String format, Drm drm, List<Sub> subs, List<Danmaku> danmakus) {
+        this.format = format;
+        this.drm = drm;
+        this.subs = subs;
+        this.danmakus = danmakus;
+    }
+
+    void setSub(Sub sub) { this.sub = sub; }
+
+    void setFormat(String format) { this.format = format; }
+
+    void applyDanmaku(Danmaku item) {
+        if (danmakus == null) danmakus = new ArrayList<>();
+        if (!item.isEmpty() && !danmakus.contains(item)) danmakus.add(0, item);
+        danmakus.forEach(d -> d.setSelected(d.getUrl().equals(item.getUrl())));
+    }
+
+    String getFormat() { return format; }
+
+    Drm getDrm() { return drm; }
+
+    List<Sub> getRawSubs() { return subs; }
+
     // ---- package-private helpers used during media item construction ----
 
     Map<String, String> checkUa(Map<String, String> headers) {

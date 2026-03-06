@@ -134,6 +134,7 @@ public class DanPlayer implements DrawHandler.Callback, Player.Listener {
     public void onPlaybackStateChanged(int state) {
         if (state == Player.STATE_BUFFERING) pause();
         else if (state == Player.STATE_READY) prepared();
+        else if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) stop();
     }
 
     @Override
