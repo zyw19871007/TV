@@ -1,8 +1,11 @@
 package com.fongmi.android.tv.ui.activity;
 
 import android.annotation.SuppressLint;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
+import android.os.IBinder;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
@@ -91,6 +94,19 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
     private CustomKeyDown mKeyDown;
     private List<Group> mHides;
     private Players mPlayers;
+    private boolean mServiceBound;
+    private final ServiceConnection mPlaybackConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mServiceBound = true;
+            mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayers();
+            setVideoView();
+        }
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mServiceBound = false;
+        }
+    };
     private Channel mChannel;
     private Group mGroup;
     private Runnable mR1;
@@ -145,7 +161,6 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
         mKeyDown = CustomKeyDown.create(this, mBinding.exo);
         setPadding(mBinding.control.getRoot());
         setPadding(mBinding.recycler, true);
-        mPlayers = Players.create();
         mObserveEpg = this::setEpg;
         mObserveUrl = this::start;
         mHides = new ArrayList<>();
@@ -154,15 +169,15 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
         mR3 = this::hideInfo;
         mPiP = new PiP();
         setRecyclerView();
-        setVideoView();
         setViewModel();
         checkLive();
+        PlaybackService.start();
+        bindService(new Intent(this, PlaybackService.class), mPlaybackConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
     @SuppressLint("ClickableViewAccessibility")
     protected void initEvent() {
-        mBinding.control.seek.setPlayer(mPlayers);
         mBinding.control.back.setOnClickListener(view -> onBack());
         mBinding.control.cast.setOnClickListener(view -> onCast());
         mBinding.control.info.setOnClickListener(view -> onInfo());
@@ -200,10 +215,11 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
     }
 
     private void setVideoView() {
-        mPlayers.init(mBinding.exo);
+        mPlayers.attachView(mBinding.exo);
         setScale(Setting.getLiveScale());
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setListener(this);
+        mBinding.control.seek.setPlayer(mPlayers);
         mBinding.control.action.invert.setActivated(Setting.isInvert());
         mBinding.control.action.across.setActivated(Setting.isAcross());
         mBinding.control.action.change.setActivated(Setting.isChange());
@@ -810,7 +826,6 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
 
     @Override
     public void onPrepare() {
-        PlaybackService.start(mPlayers.getExoPlayer());
         setDecode();
     }
 
@@ -1165,7 +1180,8 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
 
     @Override
     protected void onDestroy() {
-        mPlayers.release();
+        if (mPlayers != null) mPlayers.detachView();
+        if (mServiceBound) { unbindService(mPlaybackConnection); mServiceBound = false; }
         Source.get().exit();
         PlaybackService.stop();
         App.removeCallbacks(mR1, mR2, mR3);

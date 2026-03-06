@@ -58,6 +58,19 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
     private RenderState mState;
     private CastAction mAction;
     private Players mPlayers;
+    private boolean mServiceBound;
+    private final ServiceConnection mPlaybackConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mServiceBound = true;
+            mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayers();
+            setVideoView();
+        }
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mServiceBound = false;
+        }
+    };
     private Runnable mR1;
     private Runnable mR2;
     private Clock mClock;
@@ -92,17 +105,16 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
         bindService(new Intent(this, DLNARendererService.class), this, Context.BIND_AUTO_CREATE);
         mClock = Clock.create(mBinding.widget.clock);
         mKeyDown = CustomKeyDownVod.create(this);
-        mPlayers = Players.create();
         mR1 = this::hideControl;
         mR2 = this::setTraffic;
         mKeyDown.setFull(true);
-        setVideoView();
+        PlaybackService.start();
+        bindService(new Intent(this, PlaybackService.class), mPlaybackConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
     @SuppressLint("ClickableViewAccessibility")
     protected void initEvent() {
-        mBinding.control.seek.setPlayer(mPlayers);
         mBinding.control.speed.setUpListener(this::onSpeedAdd);
         mBinding.control.speed.setDownListener(this::onSpeedSub);
         mBinding.control.text.setUpListener(this::onSubtitleClick);
@@ -145,10 +157,11 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
     }
 
     private void setVideoView() {
-        mPlayers.init(mBinding.exo);
+        mPlayers.attachView(mBinding.exo);
         setScale(scale = Setting.getScale());
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setListener(this);
+        mBinding.control.seek.setPlayer(mPlayers);
         findViewById(R.id.timeBar).setNextFocusUpId(R.id.reset);
         mBinding.control.speed.setText(mPlayers.getSpeedText());
         mBinding.control.decode.setText(mPlayers.getDecodeText());
@@ -301,7 +314,6 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
 
     @Override
     public void onPrepare() {
-        PlaybackService.start(mPlayers.getExoPlayer());
         setDecode();
         setState(RenderState.PREPARING);
     }
@@ -550,7 +562,8 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
     @Override
     protected void onDestroy() {
         mClock.release();
-        mPlayers.release();
+        if (mPlayers != null) mPlayers.detachView();
+        if (mServiceBound) { unbindService(mPlaybackConnection); mServiceBound = false; }
         unbindService(this);
         PlaybackService.stop();
         mService.bindRealPlayer(null);

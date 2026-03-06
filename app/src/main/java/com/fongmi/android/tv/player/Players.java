@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.PlaybackException;
@@ -65,6 +66,11 @@ public class Players implements Player.Listener, ParseCallback {
     private final Formatter formatter;
     private final Runnable timeoutRunnable;
 
+    interface OnExoPlayerRebuildListener {
+        void onExoPlayerRebuilt(ExoPlayer newPlayer);
+    }
+
+    private OnExoPlayerRebuildListener rebuildListener;
     private PlayerListener listener;
     private ExoPlayer exoPlayer;
     private DanPlayer danPlayer;
@@ -91,13 +97,39 @@ public class Players implements Player.Listener, ParseCallback {
         formatter = new Formatter(builder, Locale.getDefault());
     }
 
+    /** Called by PlaybackService.onCreate() — builds ExoPlayer without attaching a view. */
+    public void buildExoPlayer() {
+        releasePlayer();
+        setPlayer(null);
+    }
+
+    /** Called by Activity after binding — attaches PlayerView to the already-built ExoPlayer. */
+    public void attachView(PlayerView view) {
+        if (exoPlayer == null) return;
+        view.setRender(Setting.getRender());
+        view.setPlayer(exoPlayer);
+        this.view = view;
+        setMediaItem();
+    }
+
+    /** Called by Activity on destroy — detaches PlayerView without releasing ExoPlayer. */
+    public void detachView() {
+        if (view != null) view.setPlayer(null);
+        view = null;
+    }
+
+    void setOnExoPlayerRebuildListener(OnExoPlayerRebuildListener listener) {
+        this.rebuildListener = listener;
+    }
+
+    /** Legacy entry point kept for compatibility; not used in Service-owned architecture. */
     public void init(PlayerView view) {
         releasePlayer();
         setPlayer(view);
         setMediaItem();
     }
 
-    private void setPlayer(PlayerView view) {
+    private void setPlayer(@Nullable PlayerView view) {
         exoPlayer = new ExoPlayer.Builder(App.get())
                 .setLoadControl(ExoUtil.buildLoadControl())
                 .setTrackSelector(ExoUtil.buildTrackSelector())
@@ -108,13 +140,15 @@ public class Players implements Player.Listener, ParseCallback {
         exoPlayer.setAudioAttributes(AudioAttributes.DEFAULT, true);
         exoPlayer.setHandleAudioBecomingNoisy(true);
         exoPlayer.setWakeMode(C.WAKE_MODE_NETWORK);
-        view.setRender(Setting.getRender());
         exoPlayer.setPlayWhenReady(true);
         exoPlayer.addListener(this);
         speedCtrl.setPlayer(exoPlayer);
         if (danPlayer != null) danPlayer.setPlayer(exoPlayer);
-        view.setPlayer(exoPlayer);
-        this.view = view;
+        if (view != null) {
+            view.setRender(Setting.getRender());
+            view.setPlayer(exoPlayer);
+            this.view = view;
+        }
     }
 
     public void setDanmakuView(DanmakuView view) {
@@ -288,7 +322,16 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void toggleDecode() {
         decode = isHard() ? SOFT : HARD;
-        init(view);
+        releaseExoPlayerOnly();
+        setPlayer(view);
+        setMediaItem();
+        if (rebuildListener != null) rebuildListener.onExoPlayerRebuilt(exoPlayer);
+    }
+
+    private void releaseExoPlayerOnly() {
+        if (danPlayer != null) danPlayer.setPlayer(null);
+        if (exoPlayer != null) exoPlayer.release();
+        exoPlayer = null;
     }
 
     public String getPositionTime(long time) {

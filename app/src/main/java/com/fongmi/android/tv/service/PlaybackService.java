@@ -1,8 +1,8 @@
 package com.fongmi.android.tv.service;
 
-import android.app.ActivityManager;
-import android.content.Context;
 import android.content.Intent;
+import android.os.Binder;
+import android.os.IBinder;
 import android.view.KeyEvent;
 
 import androidx.annotation.NonNull;
@@ -17,47 +17,51 @@ import androidx.media3.session.SessionResult;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.event.ActionEvent;
+import com.fongmi.android.tv.player.Players;
 import com.fongmi.android.tv.utils.Notify;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 
-import java.util.List;
-
 public class PlaybackService extends MediaSessionService {
 
-    // Holds the ExoPlayer only during service startup (until onCreate() fires).
-    // After createMediaSession(), this is cleared — use mediaSession.getPlayer() instead.
-    private static ExoPlayer pendingPlayer;
-    private static PlaybackService instance;
+    private static boolean sRunning;
+    private Players players;
     private MediaSession mediaSession;
 
-    public static void start(ExoPlayer player) {
-        if (instance != null) {
-            instance.updateSession(player);
-        } else {
-            pendingPlayer = player;
-            ContextCompat.startForegroundService(App.get(), new Intent(App.get(), PlaybackService.class));
-        }
+    public static boolean isRunning() {
+        return sRunning;
     }
 
-    public static void stop() {
-        App.get().stopService(new Intent(App.get(), PlaybackService.class));
+    // ---- Binder ----
+
+    public class PlaybackBinder extends Binder {
+        public Players getPlayers() { return players; }
     }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        IBinder sessionBinder = super.onBind(intent);
+        // Return our PlaybackBinder so Activities can access Players directly.
+        // MediaSessionService.onBind() handles its own session token intents separately.
+        return sessionBinder != null ? sessionBinder : new PlaybackBinder();
+    }
+
+    // ---- Lifecycle ----
 
     @Override
     public void onCreate() {
         super.onCreate();
-        instance = this;
+        sRunning = true;
         setMediaNotificationProvider(
             new DefaultMediaNotificationProvider.Builder(this)
                 .setChannelId(Notify.DEFAULT)
                 .setNotificationId(Notify.ID)
                 .build()
         );
-        if (pendingPlayer != null) {
-            createMediaSession(pendingPlayer);
-            pendingPlayer = null;
-        }
+        players = Players.create();
+        players.buildExoPlayer();
+        players.setOnExoPlayerRebuildListener(this::onExoPlayerRebuilt);
+        createMediaSession(players.getExoPlayer());
     }
 
     private void createMediaSession(ExoPlayer player) {
@@ -66,15 +70,12 @@ public class PlaybackService extends MediaSessionService {
             .build();
     }
 
-    private void updateSession(ExoPlayer player) {
-        if (mediaSession == null) {
-            createMediaSession(player);
-            return;
+    private void onExoPlayerRebuilt(ExoPlayer newPlayer) {
+        if (mediaSession != null) {
+            mediaSession.release();
+            mediaSession = null;
         }
-        if (mediaSession.getPlayer() == player) return;
-        mediaSession.release();
-        mediaSession = null;
-        createMediaSession(player);
+        createMediaSession(newPlayer);
     }
 
     @Nullable
@@ -90,7 +91,8 @@ public class PlaybackService extends MediaSessionService {
 
     @Override
     public void onDestroy() {
-        instance = null;
+        sRunning = false;
+        if (players != null) players.release();
         if (mediaSession != null) {
             mediaSession.release();
             mediaSession = null;
@@ -98,13 +100,17 @@ public class PlaybackService extends MediaSessionService {
         super.onDestroy();
     }
 
-    public static boolean isRunning() {
-        ActivityManager manager = (ActivityManager) App.get().getSystemService(Context.ACTIVITY_SERVICE);
-        List<ActivityManager.RunningServiceInfo> services = manager.getRunningServices(Integer.MAX_VALUE);
-        if (services == null || services.isEmpty()) return false;
-        String clz = PlaybackService.class.getName();
-        return services.stream().anyMatch(serviceInfo -> clz.equals(serviceInfo.service.getClassName()));
+    // ---- Static helpers ----
+
+    public static void start() {
+        ContextCompat.startForegroundService(App.get(), new Intent(App.get(), PlaybackService.class));
     }
+
+    public static void stop() {
+        App.get().stopService(new Intent(App.get(), PlaybackService.class));
+    }
+
+    // ---- Session callback ----
 
     private static class SessionCallbackImpl implements MediaSession.Callback {
 

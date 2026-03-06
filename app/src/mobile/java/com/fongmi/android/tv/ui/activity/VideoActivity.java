@@ -3,7 +3,11 @@ package com.fongmi.android.tv.ui.activity;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
+import android.os.IBinder;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
@@ -131,6 +135,19 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
     private List<String> mBroken;
     private History mHistory;
     private Players mPlayers;
+    private boolean mServiceBound;
+    private final ServiceConnection mPlaybackConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mServiceBound = true;
+            mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayers();
+            setVideoView();
+        }
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mServiceBound = false;
+        }
+    };
     private boolean fullscreen;
     private boolean audioOnly;
     private boolean initAuto;
@@ -281,7 +298,6 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         mObserveDetail = this::setDetail;
         mObservePlayer = this::setPlayer;
         mObserveSearch = this::setSearch;
-        mPlayers = Players.create();
         mBroken = new ArrayList<>();
         mClock = Clock.create();
         mR1 = this::hideControl;
@@ -291,18 +307,18 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         mPiP = new PiP();
         checkDanmakuImg();
         setRecyclerView();
-        setVideoView();
         setViewModel();
         showProgress();
         showDanmaku();
         setAnimator();
         checkId();
+        PlaybackService.start();
+        bindService(new Intent(this, PlaybackService.class), mPlaybackConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
     @SuppressLint("ClickableViewAccessibility")
     protected void initEvent() {
-        mBinding.control.seek.setPlayer(mPlayers);
         mBinding.name.setOnClickListener(view -> onName());
         mBinding.more.setOnClickListener(view -> onMore());
         mBinding.actor.setOnClickListener(view -> onActor());
@@ -375,10 +391,11 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
     }
 
     private void setVideoView() {
-        mPlayers.init(mBinding.exo);
+        mPlayers.attachView(mBinding.exo);
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setDanmakuView(mBinding.danmaku);
         mPlayers.setListener(this);
+        mBinding.control.seek.setPlayer(mPlayers);
         if (isPort() && ResUtil.isLand(this)) enterFullscreen();
         mBinding.control.action.decode.setText(mPlayers.getDecodeText());
         mBinding.control.action.danmaku.setVisibility(Setting.isDanmakuLoad() ? View.VISIBLE : View.GONE);
@@ -1202,7 +1219,6 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
 
     @Override
     public void onPrepare() {
-        PlaybackService.start(mPlayers.getExoPlayer());
         setDecode();
         setPosition();
     }
@@ -1687,7 +1703,8 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
     protected void onDestroy() {
         saveHistory();
         mClock.release();
-        mPlayers.release();
+        if (mPlayers != null) mPlayers.detachView();
+        if (mServiceBound) { unbindService(mPlaybackConnection); mServiceBound = false; }
         Timer.get().reset();
         RefreshEvent.keep();
         RefreshEvent.history();

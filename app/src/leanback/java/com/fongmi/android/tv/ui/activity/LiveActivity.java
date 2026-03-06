@@ -1,8 +1,11 @@
 package com.fongmi.android.tv.ui.activity;
 
 import android.annotation.SuppressLint;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
+import android.os.IBinder;
 import android.graphics.drawable.Drawable;
 import android.view.KeyEvent;
 import android.view.View;
@@ -87,6 +90,19 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
     private LiveViewModel mViewModel;
     private List<Group> mHides;
     private Players mPlayers;
+    private boolean mServiceBound;
+    private final ServiceConnection mPlaybackConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mServiceBound = true;
+            mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayers();
+            setVideoView();
+        }
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mServiceBound = false;
+        }
+    };
     private Channel mChannel;
     private View mOldView;
     private Group mGroup;
@@ -134,7 +150,6 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
     protected void initView() {
         mClock = Clock.create(mBinding.widget.clock);
         mKeyDown = CustomKeyDownLive.create(this);
-        mPlayers = Players.create();
         mObserveEpg = this::setEpg;
         mObserveUrl = this::start;
         mHides = new ArrayList<>();
@@ -144,9 +159,10 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
         mR3 = this::hideInfo;
         mR4 = this::hideUI;
         setRecyclerView();
-        setVideoView();
         setViewModel();
         checkLive();
+        PlaybackService.start();
+        bindService(new Intent(this, PlaybackService.class), mPlaybackConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
@@ -155,7 +171,6 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
         mBinding.group.setListener(this);
         mBinding.channel.setListener(this);
         mBinding.epgData.setListener(this);
-        mBinding.control.seek.setPlayer(mPlayers);
         mBinding.control.text.setOnClickListener(this::onTrack);
         mBinding.control.audio.setOnClickListener(this::onTrack);
         mBinding.control.video.setOnClickListener(this::onTrack);
@@ -194,11 +209,11 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
     }
 
     private void setVideoView() {
-        mPlayers.init(mBinding.exo);
-        PlaybackService.start(mPlayers);
+        mPlayers.attachView(mBinding.exo);
         setScale(Setting.getLiveScale());
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setListener(this);
+        mBinding.control.seek.setPlayer(mPlayers);
         findViewById(R.id.timeBar).setNextFocusUpId(R.id.config);
         mBinding.control.invert.setActivated(Setting.isInvert());
         mBinding.control.across.setActivated(Setting.isAcross());
@@ -1066,7 +1081,8 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
 
     @Override
     protected void onDestroy() {
-        mPlayers.release();
+        if (mPlayers != null) mPlayers.detachView();
+        if (mServiceBound) { unbindService(mPlaybackConnection); mServiceBound = false; }
         Source.get().exit();
         PlaybackService.stop();
         mViewModel.url.removeObserver(mObserveUrl);
