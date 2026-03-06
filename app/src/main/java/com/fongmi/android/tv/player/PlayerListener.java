@@ -7,5 +7,4 @@ public interface PlayerListener {
     void onTrack();
     void onSize();
     void onError(String msg);
-    void onUpdate();
 }

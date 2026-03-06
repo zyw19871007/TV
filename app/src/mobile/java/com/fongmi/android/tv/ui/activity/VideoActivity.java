@@ -376,7 +376,6 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
 
     private void setVideoView() {
         mPlayers.init(mBinding.exo);
-        PlaybackService.start(mPlayers);
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setDanmakuView(mBinding.danmaku);
         mPlayers.setListener(this);
@@ -1203,6 +1202,7 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
 
     @Override
     public void onPrepare() {
+        PlaybackService.start(mPlayers.getExoPlayer());
         setDecode();
         setPosition();
     }
@@ -1252,11 +1252,6 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         mPlayers.reset();
         mPlayers.stop();
         startFlow();
-    }
-
-    @Override
-    public void onUpdate() {
-        EventBus.getDefault().post(new ActionEvent(ActionEvent.UPDATE));
     }
 
     private void setPosition() {

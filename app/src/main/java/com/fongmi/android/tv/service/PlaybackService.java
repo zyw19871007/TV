@@ -9,6 +9,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.DefaultMediaNotificationProvider;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
@@ -16,25 +17,22 @@ import androidx.media3.session.SessionResult;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.event.ActionEvent;
-import com.fongmi.android.tv.player.Players;
 import com.fongmi.android.tv.utils.Notify;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
 
 import java.util.List;
 
 public class PlaybackService extends MediaSessionService {
 
-    private static Players player;
+    private static PlaybackService instance;
+    private static ExoPlayer exoPlayer;
     private MediaSession mediaSession;
 
-    public static void start(Players p) {
-        player = p;
+    public static void start(ExoPlayer player) {
+        exoPlayer = player;
         ContextCompat.startForegroundService(App.get(), new Intent(App.get(), PlaybackService.class));
+        if (instance != null) instance.recreateSession();
     }
 
     public static void stop() {
@@ -44,22 +42,29 @@ public class PlaybackService extends MediaSessionService {
     @Override
     public void onCreate() {
         super.onCreate();
-        EventBus.getDefault().register(this);
+        instance = this;
         setMediaNotificationProvider(
             new DefaultMediaNotificationProvider.Builder(this)
                 .setChannelId(Notify.DEFAULT)
                 .setNotificationId(Notify.ID)
                 .build()
         );
-        if (player != null && player.getExoPlayer() != null) {
-            createMediaSession();
-        }
+        if (exoPlayer != null) createMediaSession();
     }
 
     private void createMediaSession() {
-        mediaSession = new MediaSession.Builder(this, player.getExoPlayer())
+        mediaSession = new MediaSession.Builder(this, exoPlayer)
             .setCallback(new SessionCallbackImpl())
             .build();
+    }
+
+    private void recreateSession() {
+        if (mediaSession != null) {
+            if (mediaSession.getPlayer() == exoPlayer) return;
+            mediaSession.release();
+            mediaSession = null;
+        }
+        if (exoPlayer != null) createMediaSession();
     }
 
     @Nullable
@@ -68,22 +73,14 @@ public class PlaybackService extends MediaSessionService {
         return mediaSession;
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onActionEvent(ActionEvent event) {
-        if (!event.isUpdate()) return;
-        if (mediaSession == null && player != null && player.getExoPlayer() != null) {
-            createMediaSession();
-        }
-    }
-
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        if (player == null || !player.isPlaying()) stopSelf();
+        if (exoPlayer == null || !exoPlayer.isPlaying()) stopSelf();
     }
 
     @Override
     public void onDestroy() {
-        EventBus.getDefault().unregister(this);
+        instance = null;
         if (mediaSession != null) {
             mediaSession.release();
             mediaSession = null;

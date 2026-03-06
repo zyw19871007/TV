@@ -146,7 +146,6 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
 
     private void setVideoView() {
         mPlayers.init(mBinding.exo);
-        PlaybackService.start(mPlayers);
         setScale(scale = Setting.getScale());
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setListener(this);
@@ -302,6 +301,7 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
 
     @Override
     public void onPrepare() {
+        PlaybackService.start(mPlayers.getExoPlayer());
         setDecode();
         setState(RenderState.PREPARING);
     }
@@ -349,11 +349,6 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
         showError(msg);
         mPlayers.resetTrack();
         onStopped();
-    }
-
-    @Override
-    public void onUpdate() {
-        EventBus.getDefault().post(new ActionEvent(ActionEvent.UPDATE));
     }
 
     private void setTrackVisible() {

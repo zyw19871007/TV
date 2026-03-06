@@ -455,7 +455,6 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void setMetadata(String title, String artist, String artUri) {
         params.setMetadata(title, artist, artUri);
-        if (listener != null) listener.onUpdate();
     }
 
     public void share(android.app.Activity activity, CharSequence title) {
@@ -484,10 +483,7 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onIsPlayingChanged(boolean isPlaying) {
-        if (listener != null) {
-            listener.onPlaying();
-            listener.onUpdate();
-        }
+        if (listener != null) listener.onPlaying();
     }
 
     @Override

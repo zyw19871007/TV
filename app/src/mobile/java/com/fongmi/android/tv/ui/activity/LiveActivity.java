@@ -201,7 +201,6 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
 
     private void setVideoView() {
         mPlayers.init(mBinding.exo);
-        PlaybackService.start(mPlayers);
         setScale(Setting.getLiveScale());
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setListener(this);
@@ -811,6 +810,7 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
 
     @Override
     public void onPrepare() {
+        PlaybackService.start(mPlayers.getExoPlayer());
         setDecode();
     }
 
@@ -854,11 +854,6 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
         mPlayers.reset();
         mPlayers.stop();
         startFlow();
-    }
-
-    @Override
-    public void onUpdate() {
-        EventBus.getDefault().post(new ActionEvent(ActionEvent.UPDATE));
     }
 
     private void checkEnded() {
