@@ -12,7 +12,6 @@ import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
-import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.Tracks;
@@ -65,6 +64,7 @@ public class Players implements Player.Listener, ParseCallback {
     public static final int SOFT = 0;
     public static final int HARD = 1;
 
+    private final PlaybackParams params;
     private final SpeedController speedCtrl;
     private final SharingHelper sharingHelper;
     private final ErrorMsgProvider provider;
@@ -73,23 +73,12 @@ public class Players implements Player.Listener, ParseCallback {
     private final Formatter formatter;
     private final Runnable runnable;
 
-    private Map<String, String> headers;
-    private List<Danmaku> danmakus;
     private ExoPlayer exoPlayer;
     private DanPlayer danPlayer;
     private ParseJob parseJob;
     private PlayerView view;
     private VideoSize size;
-    private List<Sub> subs;
-    private String format;
-    private String metaTitle;
-    private String metaArtist;
-    private String metaArtUri;
     private String tag;
-    private String key;
-    private String url;
-    private Drm drm;
-    private Sub sub;
 
     private boolean initTrack;
     private int decode;
@@ -103,6 +92,7 @@ public class Players implements Player.Listener, ParseCallback {
 
     private Players() {
         decode = HARD;
+        params = new PlaybackParams();
         builder = new StringBuilder();
         provider = new ErrorMsgProvider();
         speedCtrl = new SpeedController();
@@ -119,10 +109,16 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     private void setPlayer(PlayerView view) {
-        exoPlayer = new ExoPlayer.Builder(App.get()).setLoadControl(ExoUtil.buildLoadControl()).setTrackSelector(ExoUtil.buildTrackSelector()).setRenderersFactory(ExoUtil.buildRenderersFactory(isHard() ? EXTENSION_RENDERER_MODE_ON : EXTENSION_RENDERER_MODE_PREFER)).setMediaSourceFactory(ExoUtil.buildMediaSourceFactory()).build();
+        exoPlayer = new ExoPlayer.Builder(App.get())
+                .setLoadControl(ExoUtil.buildLoadControl())
+                .setTrackSelector(ExoUtil.buildTrackSelector())
+                .setRenderersFactory(ExoUtil.buildRenderersFactory(isHard() ? EXTENSION_RENDERER_MODE_ON : EXTENSION_RENDERER_MODE_PREFER))
+                .setMediaSourceFactory(ExoUtil.buildMediaSourceFactory())
+                .build();
         if (BuildConfig.DEBUG) exoPlayer.addAnalyticsListener(new EventLogger());
         exoPlayer.setAudioAttributes(AudioAttributes.DEFAULT, true);
         exoPlayer.setHandleAudioBecomingNoisy(true);
+        exoPlayer.setWakeMode(C.WAKE_MODE_NETWORK);
         view.setRender(Setting.getRender());
         exoPlayer.setPlayWhenReady(true);
         exoPlayer.addListener(this);
@@ -138,42 +134,38 @@ public class Players implements Player.Listener, ParseCallback {
         danPlayer.setView(view);
     }
 
-    public ExoPlayer get() {
-        return exoPlayer;
-    }
-
     public ExoPlayer getExoPlayer() {
         return exoPlayer;
     }
 
     public List<Danmaku> getDanmakus() {
-        return danmakus;
+        return params.danmakus;
     }
 
     public String getUrl() {
-        return url;
+        return params.url;
     }
 
     public Map<String, String> getHeaders() {
-        return headers == null ? new HashMap<>() : headers;
+        return params.getHeaders();
     }
 
     public void setSub(Sub sub) {
-        this.sub = sub;
+        params.sub = sub;
         setMediaItem();
     }
 
     public void setFormat(String format) {
-        this.format = format;
+        params.format = format;
         setMediaItem();
     }
 
     public String getKey() {
-        return key != null ? key : url;
+        return params.getKey();
     }
 
     public void setKey(String key) {
-        this.key = key;
+        params.setKey(key);
     }
 
     public String getTag() {
@@ -194,12 +186,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public void clear() {
-        danmakus = null;
-        headers = null;
-        format = null;
-        subs = null;
-        drm = null;
-        url = null;
+        params.clear();
     }
 
     public String stringToTime(long time) {
@@ -235,8 +222,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public boolean haveDanmaku() {
-        if (danmakus != null) for (Danmaku danmaku : danmakus) if (danmaku.isSelected()) return true;
-        return false;
+        return params.haveDanmaku();
     }
 
     public boolean canSetOpening(long position, long duration) {
@@ -260,7 +246,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public boolean isEmpty() {
-        return TextUtils.isEmpty(getUrl());
+        return params.isEmpty();
     }
 
     public boolean isLive() {
@@ -399,10 +385,10 @@ public class Players implements Player.Listener, ParseCallback {
 
     private void startParse(Result result, boolean useParse) {
         stopParse();
-        drm = result.getDrm();
-        subs = result.getSubs();
-        format = result.getFormat();
-        danmakus = result.getDanmaku();
+        params.drm = result.getDrm();
+        params.subs = result.getSubs();
+        params.format = result.getFormat();
+        params.danmakus = result.getDanmaku();
         parseJob = ParseJob.create(this).start(result, useParse);
     }
 
@@ -411,30 +397,8 @@ public class Players implements Player.Listener, ParseCallback {
         parseJob = null;
     }
 
-    private Map<String, String> checkUa(Map<String, String> headers) {
-        for (Map.Entry<String, String> header : headers.entrySet()) if (HttpHeaders.USER_AGENT.equalsIgnoreCase(header.getKey())) return headers;
-        headers.put(HttpHeaders.USER_AGENT, Setting.getUa().isEmpty() ? ExoUtil.getUa() : Setting.getUa());
-        return headers;
-    }
-
-    private List<Sub> checkSub(List<Sub> subs) {
-        if (subs == null) subs = this.subs = new ArrayList<>();
-        if (sub == null || subs.contains(sub)) return subs;
-        subs.add(0, sub);
-        return subs;
-    }
-
-    private MediaMetadata buildMediaMetadata() {
-        if (metaTitle == null && metaArtist == null && metaArtUri == null) return null;
-        MediaMetadata.Builder b = new MediaMetadata.Builder();
-        if (metaTitle != null) b.setTitle(metaTitle);
-        if (metaArtist != null) b.setArtist(metaArtist);
-        if (metaArtUri != null && !metaArtUri.isEmpty()) b.setArtworkUri(Uri.parse(metaArtUri));
-        return b.build();
-    }
-
     public void setMediaItem() {
-        if (url != null) setMediaItem(headers, url, format, drm, subs, danmakus, Constant.TIMEOUT_PLAY);
+        if (params.url != null) setMediaItem(params.headers, params.url, params.format, params.drm, params.subs, params.danmakus, Constant.TIMEOUT_PLAY);
     }
 
     public void setMediaItem(String url) {
@@ -442,7 +406,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     private void setMediaItem(Map<String, String> headers, String url) {
-        setMediaItem(headers, url, format, drm, subs, danmakus, Constant.TIMEOUT_PLAY);
+        setMediaItem(headers, url, params.format, params.drm, params.subs, params.danmakus, Constant.TIMEOUT_PLAY);
     }
 
     private void setMediaItem(Result result, long timeout) {
@@ -450,24 +414,26 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     private void setMediaItem(Map<String, String> headers, String url, String format, Drm drm, List<Sub> subs, List<Danmaku> danmakus, long timeout) {
-        if (exoPlayer != null) exoPlayer.setMediaItem(ExoUtil.getMediaItem(this.headers = checkUa(headers), UrlUtil.uri(this.url = url), this.format = format, this.drm = drm, checkSub(this.subs = subs), decode, buildMediaMetadata()));
-        Logger.t(TAG).d("headers=%s\nurl=%s\nformat=%s\ndrm=%s\nsubs=%s\ndanmakus=%s\ntimeout=%s", this.headers, url, format, drm, this.subs, danmakus, timeout);
-        if (danPlayer != null) setDanmaku(this.danmakus = danmakus);
+        params.headers = params.checkUa(headers);
+        params.url = url;
+        params.format = format;
+        params.drm = drm;
+        params.subs = subs;
+        params.danmakus = danmakus;
+        if (exoPlayer != null) exoPlayer.setMediaItem(ExoUtil.getMediaItem(params.headers, UrlUtil.uri(url), format, drm, params.checkSub(subs), decode, params.buildMediaMetadata()));
+        Logger.t(TAG).d("headers=%s\nurl=%s\nformat=%s\ndrm=%s\nsubs=%s\ndanmakus=%s\ntimeout=%s", params.headers, url, format, drm, params.subs, danmakus, timeout);
+        if (danPlayer != null) setDanmaku(danmakus == null || danmakus.isEmpty() ? Danmaku.empty() : danmakus.get(0));
         App.post(runnable, timeout);
         PlayerEvent.prepare(tag);
         initTrack = false;
         prepare();
     }
 
-    private void setDanmaku(List<Danmaku> items) {
-        setDanmaku(items == null || items.isEmpty() ? Danmaku.empty() : items.get(0));
-    }
-
     public void setDanmaku(Danmaku item) {
         danPlayer.setDanmaku(item);
-        if (danmakus == null) danmakus = new ArrayList<>();
-        if (!item.isEmpty() && !danmakus.contains(item)) danmakus.add(0, item);
-        danmakus.forEach(d -> d.setSelected(d.getUrl().equals(item.getUrl())));
+        if (params.danmakus == null) params.danmakus = new ArrayList<>();
+        if (!item.isEmpty() && !params.danmakus.contains(item)) params.danmakus.add(0, item);
+        params.danmakus.forEach(d -> d.setSelected(d.getUrl().equals(item.getUrl())));
     }
 
     public void setDanmakuSize(float size) {
@@ -491,21 +457,19 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public String getMetaTitle() {
-        return metaTitle;
+        return params.getMetaTitle();
     }
 
     public String getMetaArtist() {
-        return metaArtist;
+        return params.getMetaArtist();
     }
 
     public String getMetaArtUri() {
-        return metaArtUri;
+        return params.getMetaArtUri();
     }
 
     public void setMetadata(String title, String artist, String artUri) {
-        this.metaTitle = title;
-        this.metaArtist = artist;
-        this.metaArtUri = artUri;
+        params.setMetadata(title, artist, artUri);
         ActionEvent.update();
     }
 

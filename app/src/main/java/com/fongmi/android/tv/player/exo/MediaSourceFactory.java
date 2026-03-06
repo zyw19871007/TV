@@ -10,7 +10,6 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultDataSource;
-import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.okhttp.OkHttpDataSource;
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider;
@@ -30,13 +29,12 @@ import java.util.Map;
 
 public class MediaSourceFactory implements MediaSource.Factory {
 
-    private final DefaultMediaSourceFactory defaultMediaSourceFactory;
-    private HttpDataSource.Factory httpDataSourceFactory;
-    private DataSource.Factory dataSourceFactory;
-    private ExtractorsFactory extractorsFactory;
+    private final ExtractorsFactory extractorsFactory;
 
     public MediaSourceFactory() {
-        defaultMediaSourceFactory = new DefaultMediaSourceFactory(getDataSourceFactory(), getExtractorsFactory());
+        extractorsFactory = new DefaultExtractorsFactory()
+                .setTsExtractorFlags(FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS)
+                .setTsExtractorTimestampSearchBytes(TsExtractor.DEFAULT_TIMESTAMP_SEARCH_BYTES * 10);
     }
 
     @NonNull
@@ -54,52 +52,43 @@ public class MediaSourceFactory implements MediaSource.Factory {
     @NonNull
     @Override
     public @C.ContentType int[] getSupportedTypes() {
-        return defaultMediaSourceFactory.getSupportedTypes();
+        return buildFactory(new HashMap<>()).getSupportedTypes();
     }
 
     @NonNull
     @Override
     public MediaSource createMediaSource(@NonNull MediaItem mediaItem) {
+        DefaultMediaSourceFactory factory = buildFactory(extractHeaders(mediaItem));
         if (mediaItem.mediaId.contains("***") && mediaItem.mediaId.contains("|||")) {
-            return createConcatenatingMediaSource(setHeader(mediaItem));
+            return createConcatenatingMediaSource(factory, mediaItem);
         } else {
-            return defaultMediaSourceFactory.createMediaSource(setHeader(mediaItem));
+            return factory.createMediaSource(mediaItem);
         }
     }
 
-    private MediaItem setHeader(MediaItem mediaItem) {
+    private Map<String, String> extractHeaders(MediaItem mediaItem) {
         Map<String, String> headers = new HashMap<>();
         Bundle extras = mediaItem.requestMetadata.extras;
-        if (extras != null) for (String key : extras.keySet()) headers.put(key, extras.get(key).toString());
-        getHttpDataSourceFactory().setDefaultRequestProperties(headers);
-        return mediaItem;
+        if (extras != null) for (String key : extras.keySet()) headers.put(key, extras.getString(key));
+        return headers;
     }
 
-    private MediaSource createConcatenatingMediaSource(MediaItem mediaItem) {
+    private DefaultMediaSourceFactory buildFactory(Map<String, String> headers) {
+        OkHttpDataSource.Factory http = new OkHttpDataSource.Factory(OkHttp.player()).setDefaultRequestProperties(headers);
+        DataSource.Factory data = new CacheDataSource.Factory()
+                .setCache(CacheManager.get().getCache())
+                .setUpstreamDataSourceFactory(new DefaultDataSource.Factory(App.get(), http))
+                .setCacheWriteDataSinkFactory(null)
+                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+        return new DefaultMediaSourceFactory(data, extractorsFactory);
+    }
+
+    private MediaSource createConcatenatingMediaSource(DefaultMediaSourceFactory factory, MediaItem mediaItem) {
         ConcatenatingMediaSource2.Builder builder = new ConcatenatingMediaSource2.Builder();
         for (String split : mediaItem.mediaId.split("\\*\\*\\*")) {
             String[] info = split.split("\\|\\|\\|");
-            if (info.length >= 2) builder.add(defaultMediaSourceFactory.createMediaSource(mediaItem.buildUpon().setUri(Uri.parse(info[0])).build()), Long.parseLong(info[1]));
+            if (info.length >= 2) builder.add(factory.createMediaSource(mediaItem.buildUpon().setUri(Uri.parse(info[0])).build()), Long.parseLong(info[1]));
         }
         return builder.build();
-    }
-
-    private ExtractorsFactory getExtractorsFactory() {
-        if (extractorsFactory == null) extractorsFactory = new DefaultExtractorsFactory().setTsExtractorFlags(FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS).setTsExtractorTimestampSearchBytes(TsExtractor.DEFAULT_TIMESTAMP_SEARCH_BYTES * 10);
-        return extractorsFactory;
-    }
-
-    private DataSource.Factory getDataSourceFactory() {
-        if (dataSourceFactory == null) dataSourceFactory = buildReadOnlyCacheDataSource(new DefaultDataSource.Factory(App.get(), getHttpDataSourceFactory()));
-        return dataSourceFactory;
-    }
-
-    private CacheDataSource.Factory buildReadOnlyCacheDataSource(DataSource.Factory upstreamFactory) {
-        return new CacheDataSource.Factory().setCache(CacheManager.get().getCache()).setUpstreamDataSourceFactory(upstreamFactory).setCacheWriteDataSinkFactory(null).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
-    }
-
-    private HttpDataSource.Factory getHttpDataSourceFactory() {
-        if (httpDataSourceFactory == null) httpDataSourceFactory = new OkHttpDataSource.Factory(OkHttp.player());
-        return httpDataSourceFactory;
     }
 }
