@@ -1,19 +1,15 @@
 package com.fongmi.android.tv.player;
 
-import static androidx.media3.common.Player.COMMAND_SET_SPEED_AND_PITCH;
 import static androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON;
 import static androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER;
 
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.media.AudioManager;
 import android.net.Uri;
-import android.os.Bundle;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaMetadata;
@@ -26,7 +22,6 @@ import androidx.media3.exoplayer.drm.FrameworkMediaDrm;
 import androidx.media3.exoplayer.util.EventLogger;
 import androidx.media3.ui.PlayerView;
 
-import com.bumptech.glide.request.transition.Transition;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.Constant;
@@ -40,25 +35,20 @@ import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.event.ActionEvent;
 import com.fongmi.android.tv.event.ErrorEvent;
 import com.fongmi.android.tv.event.PlayerEvent;
-import com.fongmi.android.tv.impl.CustomTarget;
 import com.fongmi.android.tv.impl.ParseCallback;
 import com.fongmi.android.tv.player.danmaku.DanPlayer;
 import com.fongmi.android.tv.player.exo.ErrorMsgProvider;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.player.exo.TrackUtil;
 import com.fongmi.android.tv.server.Server;
-import com.fongmi.android.tv.utils.FileUtil;
-import com.fongmi.android.tv.utils.ImgUtil;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.UrlUtil;
-import com.fongmi.android.tv.utils.Util;
 import com.github.catvod.utils.Path;
 import com.google.common.net.HttpHeaders;
 import com.orhanobut.logger.Logger;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Formatter;
 import java.util.HashMap;
 import java.util.List;
@@ -75,6 +65,8 @@ public class Players implements Player.Listener, ParseCallback {
     public static final int SOFT = 0;
     public static final int HARD = 1;
 
+    private final SpeedController speedCtrl;
+    private final SharingHelper sharingHelper;
     private final ErrorMsgProvider provider;
     private final AudioManager audioManager;
     private final StringBuilder builder;
@@ -113,6 +105,8 @@ public class Players implements Player.Listener, ParseCallback {
         decode = HARD;
         builder = new StringBuilder();
         provider = new ErrorMsgProvider();
+        speedCtrl = new SpeedController();
+        sharingHelper = new SharingHelper(this);
         runnable = () -> ErrorEvent.timeout(tag);
         formatter = new Formatter(builder, Locale.getDefault());
         audioManager = (AudioManager) App.get().getSystemService(Context.AUDIO_SERVICE);
@@ -132,13 +126,15 @@ public class Players implements Player.Listener, ParseCallback {
         view.setRender(Setting.getRender());
         exoPlayer.setPlayWhenReady(true);
         exoPlayer.addListener(this);
+        speedCtrl.setPlayer(exoPlayer);
+        if (danPlayer != null) danPlayer.setPlayer(exoPlayer);
         view.setPlayer(exoPlayer);
         this.view = view;
     }
 
     public void setDanmakuView(DanmakuView view) {
         danPlayer = new DanPlayer();
-        danPlayer.setPlayer(this);
+        danPlayer.setPlayer(exoPlayer);
         danPlayer.setView(view);
     }
 
@@ -219,7 +215,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public float getSpeed() {
-        return exoPlayer == null ? 1.0f : exoPlayer.getPlaybackParameters().speed;
+        return speedCtrl.getSpeed();
     }
 
     public long getPosition() {
@@ -292,7 +288,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public String getSpeedText() {
-        return String.format(Locale.getDefault(), "%.2f", getSpeed());
+        return speedCtrl.getSpeedText();
     }
 
     public String getDecodeText() {
@@ -300,34 +296,23 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public String setSpeed(float speed) {
-        if (exoPlayer == null || !exoPlayer.isCommandAvailable(COMMAND_SET_SPEED_AND_PITCH)) return getSpeedText();
-        exoPlayer.setPlaybackParameters(exoPlayer.getPlaybackParameters().withSpeed(speed));
-        return getSpeedText();
+        return speedCtrl.setSpeed(speed);
     }
 
     public String addSpeed() {
-        float speed = getSpeed();
-        float addon = speed >= 2 ? 1f : 0.25f;
-        speed = speed >= 5 ? 0.25f : Math.min(speed + addon, 5.0f);
-        return setSpeed(speed);
+        return speedCtrl.addSpeed();
     }
 
     public String addSpeed(float value) {
-        float speed = getSpeed();
-        speed = Math.min(speed + value, 5);
-        return setSpeed(speed);
+        return speedCtrl.addSpeed(value);
     }
 
     public String subSpeed(float value) {
-        float speed = getSpeed();
-        speed = Math.max(speed - value, 0.25f);
-        return setSpeed(speed);
+        return speedCtrl.subSpeed(value);
     }
 
     public String toggleSpeed() {
-        float speed = getSpeed();
-        speed = speed == 1 ? Setting.getSpeed() : 1;
-        return setSpeed(speed);
+        return speedCtrl.toggleSpeed();
     }
 
     public void toggleDecode() {
@@ -354,7 +339,6 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void seekTo(long time) {
         if (exoPlayer != null) exoPlayer.seekTo(time);
-        if (danPlayer != null) danPlayer.seekTo(time);
     }
 
     public void seekToDefaultPosition() {
@@ -368,12 +352,10 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void play() {
         if (exoPlayer != null) exoPlayer.play();
-        if (danPlayer != null) danPlayer.play();
     }
 
     public void pause() {
         if (exoPlayer != null) exoPlayer.pause();
-        if (danPlayer != null) danPlayer.pause();
     }
 
     public void stop() {
@@ -528,53 +510,15 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public void share(android.app.Activity activity, CharSequence title) {
-        try {
-            if (isEmpty()) return;
-            Bundle bundle = new Bundle();
-            for (Map.Entry<String, String> entry : getHeaders().entrySet()) bundle.putString(entry.getKey(), entry.getValue());
-            Intent intent = new Intent(Intent.ACTION_SEND);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            intent.putExtra(Intent.EXTRA_TEXT, getUrl());
-            intent.putExtra("extra_headers", bundle);
-            intent.putExtra("title", title);
-            intent.putExtra("name", title);
-            intent.setType("text/plain");
-            activity.startActivity(Util.getChooser(intent));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        sharingHelper.share(activity, title);
     }
 
     public void choose(android.app.Activity activity, CharSequence title) {
-        try {
-            if (isEmpty()) return;
-            List<String> list = new ArrayList<>();
-            for (Map.Entry<String, String> entry : getHeaders().entrySet()) list.addAll(Arrays.asList(entry.getKey(), entry.getValue()));
-            Uri data = getUrl().startsWith("file://") || getUrl().startsWith("/") ? FileUtil.getShareUri(getUrl()) : Uri.parse(getUrl());
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            intent.setDataAndType(data, "video/*");
-            intent.putExtra("title", title);
-            intent.putExtra("return_result", isVod());
-            intent.putExtra("headers", list.toArray(new String[0]));
-            if (isVod()) intent.putExtra("position", (int) getPosition());
-            activity.startActivityForResult(Util.getChooser(intent), 1001);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        sharingHelper.choose(activity, title);
     }
 
     public void checkData(Intent data) {
-        try {
-            if (data == null || data.getExtras() == null) return;
-            int position = data.getExtras().getInt("position", 0);
-            String endBy = data.getExtras().getString("end_by", "");
-            if ("playback_completion".equals(endBy)) ActionEvent.next();
-            if ("user".equals(endBy)) seekTo(position);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        sharingHelper.checkData(data);
     }
 
     @Override
@@ -598,7 +542,6 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onPlaybackStateChanged(int state) {
-        if (danPlayer != null) danPlayer.check(state);
         PlayerEvent.state(tag, state);
     }
 

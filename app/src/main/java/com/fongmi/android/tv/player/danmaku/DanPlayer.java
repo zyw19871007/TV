@@ -1,10 +1,10 @@
 package com.fongmi.android.tv.player.danmaku;
 
+import androidx.annotation.NonNull;
 import androidx.media3.common.Player;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.bean.Danmaku;
-import com.fongmi.android.tv.player.Players;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.net.OkHttp;
 
@@ -19,12 +19,12 @@ import master.flame.danmaku.danmaku.model.IDisplayer;
 import master.flame.danmaku.danmaku.model.android.DanmakuContext;
 import master.flame.danmaku.ui.widget.DanmakuView;
 
-public class DanPlayer implements DrawHandler.Callback {
+public class DanPlayer implements DrawHandler.Callback, Player.Listener {
 
     private final DanmakuContext context;
     private DanmakuView view;
     private Future<?> future;
-    private Players player;
+    private Player player;
 
     public DanPlayer() {
         context = DanmakuContext.create();
@@ -50,8 +50,13 @@ public class DanPlayer implements DrawHandler.Callback {
         this.view = view;
     }
 
-    public void setPlayer(Players player) {
-        context.setDanmakuSync(new Sync(this.player = player));
+    public void setPlayer(Player player) {
+        if (this.player != null) this.player.removeListener(this);
+        this.player = player;
+        if (player != null) {
+            context.setDanmakuSync(new Sync(player));
+            player.addListener(this);
+        }
     }
 
     private boolean isPrepared() {
@@ -94,6 +99,10 @@ public class DanPlayer implements DrawHandler.Callback {
     }
 
     public void release() {
+        if (player != null) {
+            player.removeListener(this);
+            player = null;
+        }
         cancel();
         App.execute(() -> {
             if (view != null) view.release();
@@ -113,16 +122,38 @@ public class DanPlayer implements DrawHandler.Callback {
         context.setScaleTextSize(size);
     }
 
-    public void check(int state) {
+    // Player.Listener — 自律同步彈幕，不再需要 Players 代轉呼叫
+
+    @Override
+    public void onIsPlayingChanged(boolean isPlaying) {
+        if (isPlaying) play();
+        else pause();
+    }
+
+    @Override
+    public void onPlaybackStateChanged(int state) {
         if (state == Player.STATE_BUFFERING) pause();
         else if (state == Player.STATE_READY) prepared();
     }
 
     @Override
+    public void onPositionDiscontinuity(
+            @NonNull Player.PositionInfo oldPosition,
+            @NonNull Player.PositionInfo newPosition,
+            @Player.DiscontinuityReason int reason) {
+        if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+            seekTo(newPosition.positionMs);
+        }
+    }
+
+    // DrawHandler.Callback
+
+    @Override
     public void prepared() {
         App.post(() -> {
+            if (player == null) return;
             boolean playing = player.isPlaying();
-            long position = player.getPosition();
+            long position = player.getCurrentPosition();
             App.execute(() -> {
                 if (!isPrepared()) return;
                 if (playing) view.start(position);
