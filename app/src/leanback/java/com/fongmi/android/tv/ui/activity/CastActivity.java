@@ -48,7 +48,7 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
-import java.util.UUID;
+
 
 public class CastActivity extends BaseActivity implements CustomKeyDownVod.Listener, TrackDialog.Listener, RenderControl, ServiceConnection, Clock.Callback, PlayerListener {
 
@@ -64,7 +64,6 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
     private boolean redirect;
     private long position;
     private long duration;
-    private String tag;
     private int scale;
 
     public static void start(Activity activity) {
@@ -150,7 +149,6 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
         PlaybackService.start(mPlayers);
         setScale(scale = Setting.getScale());
         ExoUtil.setSubtitleView(mBinding.exo);
-        mPlayers.setTag(tag = UUID.randomUUID().toString());
         mPlayers.setListener(this);
         findViewById(R.id.timeBar).setNextFocusUpId(R.id.reset);
         mBinding.control.speed.setText(mPlayers.getSpeedText());
@@ -303,17 +301,17 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
     }
 
     @Override
-    public void onPrepare(String tag) {
+    public void onPrepare() {
         setDecode();
         setState(RenderState.PREPARING);
     }
 
     @Override
-    public void onPlaying(String tag) {
+    public void onPlaying() {
     }
 
     @Override
-    public void onState(String tag, int state) {
+    public void onState(int state) {
         switch (state) {
             case Player.STATE_IDLE:
                 setState(RenderState.IDLE);
@@ -335,19 +333,19 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
     }
 
     @Override
-    public void onTrack(String tag) {
+    public void onTrack() {
         setMetadata();
         setTrackVisible();
         mClock.setCallback(this);
     }
 
     @Override
-    public void onSize(String tag) {
+    public void onSize() {
         mBinding.widget.size.setText(mPlayers.getSizeText());
     }
 
     @Override
-    public void onError(String tag, String msg) {
+    public void onError(String msg) {
         showError(msg);
         mPlayers.resetTrack();
         onStopped();

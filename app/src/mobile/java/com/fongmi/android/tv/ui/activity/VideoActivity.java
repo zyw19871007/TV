@@ -109,7 +109,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
+
 import java.util.regex.Matcher;
 
 public class VideoActivity extends BaseActivity implements Clock.Callback, CustomKeyDown.Listener, TrackDialog.Listener, ControlDialog.Listener, FlagAdapter.OnClickListener, EpisodeAdapter.OnClickListener, QualityAdapter.OnClickListener, QuickAdapter.OnClickListener, ParseAdapter.OnClickListener, CastDialog.Listener, InfoDialog.Listener, PlayerListener {
@@ -145,7 +145,6 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
     private Runnable mR3;
     private Runnable mR4;
     private Clock mClock;
-    private String tag;
     private PiP mPiP;
 
     public static void push(FragmentActivity activity, String text) {
@@ -380,7 +379,6 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         PlaybackService.start(mPlayers);
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setDanmakuView(mBinding.danmaku);
-        mPlayers.setTag(tag = UUID.randomUUID().toString());
         mPlayers.setListener(this);
         if (isPort() && ResUtil.isLand(this)) enterFullscreen();
         mBinding.control.action.decode.setText(mPlayers.getDecodeText());
@@ -597,7 +595,7 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         try {
             mPlayers.start(result, isUseParse(), getSite().isChangeable() ? getSite().getTimeout() : -1);
         } catch (Exception e) {
-            onError(tag, e.getMessage());
+            onError(e.getMessage());
             e.printStackTrace();
         }
     }
@@ -1036,7 +1034,7 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         boolean empty = item.getFlags().isEmpty();
         mBinding.flag.setVisibility(empty ? View.GONE : View.VISIBLE);
         if (empty) {
-            onError(tag, ResUtil.getString(R.string.error_play_flag));
+            onError(ResUtil.getString(R.string.error_play_flag));
         } else {
             onItemClick(mHistory.getFlag());
             if (mHistory.isRevSort()) reverseEpisode(true);
@@ -1204,18 +1202,18 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
     }
 
     @Override
-    public void onPrepare(String tag) {
+    public void onPrepare() {
         setDecode();
         setPosition();
     }
 
     @Override
-    public void onPlaying(String tag) {
+    public void onPlaying() {
         checkPlayImg();
     }
 
     @Override
-    public void onState(String tag, int state) {
+    public void onState(int state) {
         switch (state) {
             case Player.STATE_BUFFERING:
                 showProgress();
@@ -1232,20 +1230,20 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
     }
 
     @Override
-    public void onTrack(String tag) {
+    public void onTrack() {
         setMetadata();
         setTrackVisible();
         mClock.setCallback(this);
     }
 
     @Override
-    public void onSize(String tag) {
+    public void onSize() {
         changeHeight();
         checkOrientation();
     }
 
     @Override
-    public void onError(String tag, String msg) {
+    public void onError(String msg) {
         mBinding.swipeLayout.setEnabled(true);
         Track.delete(mPlayers.getUrl());
         showError(msg);

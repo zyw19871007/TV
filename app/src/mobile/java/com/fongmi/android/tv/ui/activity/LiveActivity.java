@@ -77,7 +77,7 @@ import org.greenrobot.eventbus.ThreadMode;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.UUID;
+
 
 public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener, TrackDialog.Listener, Biometric.Callback, PassCallback, ConfigCallback, LiveCallback, GroupAdapter.OnClickListener, ChannelAdapter.OnClickListener, EpgDataAdapter.OnClickListener, CastDialog.Listener, InfoDialog.Listener, PlayerListener {
 
@@ -101,7 +101,6 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
     private boolean rotate;
     private boolean stop;
     private boolean lock;
-    private String tag;
     private int count;
     private PiP mPiP;
 
@@ -205,7 +204,6 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
         PlaybackService.start(mPlayers);
         setScale(Setting.getLiveScale());
         ExoUtil.setSubtitleView(mBinding.exo);
-        mPlayers.setTag(tag = UUID.randomUUID().toString());
         mPlayers.setListener(this);
         mBinding.control.action.invert.setActivated(Setting.isInvert());
         mBinding.control.action.across.setActivated(Setting.isAcross());
@@ -812,17 +810,17 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
     }
 
     @Override
-    public void onPrepare(String tag) {
+    public void onPrepare() {
         setDecode();
     }
 
     @Override
-    public void onPlaying(String tag) {
+    public void onPlaying() {
         checkPlayImg();
     }
 
     @Override
-    public void onState(String tag, int state) {
+    public void onState(int state) {
         switch (state) {
             case Player.STATE_BUFFERING:
                 showProgress();
@@ -839,17 +837,17 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
     }
 
     @Override
-    public void onTrack(String tag) {
+    public void onTrack() {
         setMetadata();
         setTrackVisible();
     }
 
     @Override
-    public void onSize(String tag) {
+    public void onSize() {
     }
 
     @Override
-    public void onError(String tag, String msg) {
+    public void onError(String msg) {
         Track.delete(mPlayers.getUrl());
         showError(msg);
         mPlayers.resetTrack();

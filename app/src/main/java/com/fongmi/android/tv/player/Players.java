@@ -70,7 +70,6 @@ public class Players implements Player.Listener, ParseCallback {
     private DanPlayer danPlayer;
     private ParseJob parseJob;
     private PlayerView view;
-    private String tag;
 
     private boolean initTrack;
     private int decode;
@@ -88,7 +87,7 @@ public class Players implements Player.Listener, ParseCallback {
         builder = new StringBuilder();
         speedCtrl = new SpeedController();
         sharingHelper = new SharingHelper(this);
-        runnable = () -> { if (listener != null) listener.onError(tag, ResUtil.getString(R.string.error_play_timeout)); };
+        runnable = () -> { if (listener != null) listener.onError(ResUtil.getString(R.string.error_play_timeout)); };
         formatter = new Formatter(builder, Locale.getDefault());
     }
 
@@ -156,14 +155,6 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void setKey(String key) {
         params.setKey(key);
-    }
-
-    public String getTag() {
-        return tag;
-    }
-
-    public void setTag(String tag) {
-        this.tag = tag;
     }
 
     public void setListener(PlayerListener listener) {
@@ -365,13 +356,13 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void start(Result result, boolean useParse, long timeout) {
         if (result.getDrm() != null && !FrameworkMediaDrm.isCryptoSchemeSupported(result.getDrm().getUUID())) {
-            if (listener != null) listener.onError(tag, ResUtil.getString(R.string.error_play_drm));
+            if (listener != null) listener.onError(ResUtil.getString(R.string.error_play_drm));
         } else if (result.hasMsg()) {
-            if (listener != null) listener.onError(tag, result.getMsg());
+            if (listener != null) listener.onError(result.getMsg());
         } else if (result.getParse() == 1 || result.getJx() == 1) {
             startParse(result, useParse);
         } else if (isIllegal(result.getRealUrl())) {
-            if (listener != null) listener.onError(tag, ResUtil.getString(R.string.error_play_url));
+            if (listener != null) listener.onError(ResUtil.getString(R.string.error_play_url));
         } else {
             setMediaItem(result, timeout);
         }
@@ -418,7 +409,7 @@ public class Players implements Player.Listener, ParseCallback {
         Logger.t(TAG).d("headers=%s\nurl=%s\nformat=%s\ndrm=%s\nsubs=%s\ndanmakus=%s\ntimeout=%s", params.headers, url, format, drm, params.subs, danmakus, timeout);
         if (danPlayer != null) setDanmaku(danmakus == null || danmakus.isEmpty() ? Danmaku.empty() : danmakus.get(0));
         App.post(runnable, timeout);
-        if (listener != null) listener.onPrepare(tag);
+        if (listener != null) listener.onPrepare();
         initTrack = false;
         prepare();
     }
@@ -488,39 +479,39 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onParseError() {
-        if (listener != null) listener.onError(tag, ResUtil.getString(R.string.error_play_parse));
+        if (listener != null) listener.onError(ResUtil.getString(R.string.error_play_parse));
     }
 
     @Override
     public void onIsPlayingChanged(boolean isPlaying) {
         if (listener != null) {
-            listener.onPlaying(tag);
+            listener.onPlaying();
             listener.onUpdate();
         }
     }
 
     @Override
     public void onPlaybackStateChanged(int state) {
-        if (listener != null) listener.onState(tag, state);
+        if (listener != null) listener.onState(state);
     }
 
     @Override
     public void onVideoSizeChanged(@NonNull VideoSize videoSize) {
-        if (listener != null) listener.onSize(tag);
+        if (listener != null) listener.onSize();
     }
 
     @Override
     public void onTracksChanged(@NonNull Tracks tracks) {
         if (tracks.isEmpty() || initTrack) return;
         setTrack(Track.find(getKey()));
-        if (listener != null) listener.onTrack(tag);
+        if (listener != null) listener.onTrack();
         initTrack = true;
     }
 
     @Override
     public void onPlayerError(@NonNull PlaybackException e) {
         if (++retry > 2) {
-            if (listener != null) listener.onError(tag, e.getErrorCodeName());
+            if (listener != null) listener.onError(e.getErrorCodeName());
         } else switch (e.errorCode) {
             case PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW:
                 seekToDefaultPosition();
@@ -538,7 +529,7 @@ public class Players implements Player.Listener, ParseCallback {
                 setFormat(ExoUtil.getMimeType(e.errorCode));
                 break;
             default:
-                if (listener != null) listener.onError(tag, e.getErrorCodeName());
+                if (listener != null) listener.onError(e.getErrorCodeName());
                 break;
         }
     }

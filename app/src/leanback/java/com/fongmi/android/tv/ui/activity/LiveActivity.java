@@ -73,7 +73,7 @@ import org.greenrobot.eventbus.ThreadMode;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.UUID;
+
 
 public class LiveActivity extends BaseActivity implements GroupPresenter.OnClickListener, ChannelPresenter.OnClickListener, EpgDataPresenter.OnClickListener, CustomKeyDownLive.Listener, CustomLiveListView.Callback, TrackDialog.Listener, PassCallback, ConfigCallback, LiveCallback, PlayerListener {
 
@@ -98,7 +98,6 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
     private Clock mClock;
     private View mFocus2;
     private boolean redirect;
-    private String tag;
     private int count;
 
     public static void start(Context context) {
@@ -199,7 +198,6 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
         PlaybackService.start(mPlayers);
         setScale(Setting.getLiveScale());
         ExoUtil.setSubtitleView(mBinding.exo);
-        mPlayers.setTag(tag = UUID.randomUUID().toString());
         mPlayers.setListener(this);
         findViewById(R.id.timeBar).setNextFocusUpId(R.id.config);
         mBinding.control.invert.setActivated(Setting.isInvert());
@@ -772,17 +770,17 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
     }
 
     @Override
-    public void onPrepare(String tag) {
+    public void onPrepare() {
         setDecode();
     }
 
     @Override
-    public void onPlaying(String tag) {
+    public void onPlaying() {
         checkPlayImg();
     }
 
     @Override
-    public void onState(String tag, int state) {
+    public void onState(int state) {
         switch (state) {
             case Player.STATE_BUFFERING:
                 showProgress();
@@ -798,18 +796,18 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
     }
 
     @Override
-    public void onTrack(String tag) {
+    public void onTrack() {
         setMetadata();
         setTrackVisible();
     }
 
     @Override
-    public void onSize(String tag) {
+    public void onSize() {
         mBinding.widget.size.setText(mPlayers.getSizeText());
     }
 
     @Override
-    public void onError(String tag, String msg) {
+    public void onError(String msg) {
         Track.delete(mPlayers.getUrl());
         showError(msg);
         mPlayers.resetTrack();

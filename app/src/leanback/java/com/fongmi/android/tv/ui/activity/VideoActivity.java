@@ -94,7 +94,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
+
 import java.util.regex.Matcher;
 import java.util.stream.IntStream;
 
@@ -132,8 +132,6 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     private Clock mClock;
     private View mFocus1;
     private View mFocus2;
-    private String tag;
-
     public static void push(FragmentActivity activity, String text) {
         if (FileChooser.isValid(activity, Uri.parse(text))) file(activity, FileChooser.getPathFromUri(Uri.parse(text)));
         else start(activity, Sniffer.getUrl(text));
@@ -370,7 +368,6 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         PlaybackService.start(mPlayers);
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setDanmakuView(mBinding.danmaku);
-        mPlayers.setTag(tag = UUID.randomUUID().toString());
         mPlayers.setListener(this);
         mBinding.control.decode.setText(mPlayers.getDecodeText());
         mBinding.control.danmaku.setVisibility(Setting.isDanmakuLoad() ? View.VISIBLE : View.GONE);
@@ -581,7 +578,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         try {
             mPlayers.start(result, isUseParse(), getSite().isChangeable() ? getSite().getTimeout() : -1);
         } catch (Exception e) {
-            onError(tag, e.getMessage());
+            onError(e.getMessage());
             e.printStackTrace();
         }
     }
@@ -951,7 +948,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         boolean empty = item.getFlags().isEmpty();
         mBinding.flag.setVisibility(empty ? View.GONE : View.VISIBLE);
         if (empty) {
-            onError(tag, ResUtil.getString(R.string.error_play_flag));
+            onError(ResUtil.getString(R.string.error_play_flag));
         } else {
             setFlagActivated(mHistory.getFlag());
             if (mHistory.isRevSort()) reverseEpisode(true);
@@ -1095,17 +1092,17 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     }
 
     @Override
-    public void onPrepare(String tag) {
+    public void onPrepare() {
         setDecode();
         setPosition();
     }
 
     @Override
-    public void onPlaying(String tag) {
+    public void onPlaying() {
     }
 
     @Override
-    public void onState(String tag, int state) {
+    public void onState(int state) {
         switch (state) {
             case Player.STATE_BUFFERING:
                 showProgress();
@@ -1121,19 +1118,19 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     }
 
     @Override
-    public void onTrack(String tag) {
+    public void onTrack() {
         setMetadata();
         setTrackVisible();
         mClock.setCallback(this);
     }
 
     @Override
-    public void onSize(String tag) {
+    public void onSize() {
         mBinding.widget.size.setText(mPlayers.getSizeText());
     }
 
     @Override
-    public void onError(String tag, String msg) {
+    public void onError(String msg) {
         Track.delete(mPlayers.getUrl());
         showError(msg);
         mClock.setCallback(null);
