@@ -8,6 +8,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.media3.common.Player;
 import androidx.media3.common.util.Util;
 import androidx.media3.ui.DefaultTimeBar;
 import androidx.media3.ui.TimeBar;
@@ -33,6 +34,19 @@ public class CustomSeekView extends FrameLayout implements TimeBar.OnScrubListen
     private boolean scrubbing;
     private Players player;
 
+    private final Player.Listener playerListener = new Player.Listener() {
+        @Override
+        public void onIsPlayingChanged(boolean isPlaying) {
+            removeCallbacks(refresh);
+            postDelayed(refresh, isPlaying ? MIN_UPDATE_INTERVAL_MS : MAX_UPDATE_INTERVAL_MS);
+        }
+
+        @Override
+        public void onPlaybackStateChanged(int state) {
+            post(refresh);
+        }
+    };
+
     public CustomSeekView(Context context) {
         this(context, null);
     }
@@ -53,7 +67,13 @@ public class CustomSeekView extends FrameLayout implements TimeBar.OnScrubListen
 
     public void setPlayer(Players player) {
         removeCallbacks(refresh);
+        if (this.player != null && this.player.getExoPlayer() != null) {
+            this.player.getExoPlayer().removeListener(playerListener);
+        }
         this.player = player;
+        if (player != null && player.getExoPlayer() != null) {
+            player.getExoPlayer().addListener(playerListener);
+        }
         post(refresh);
     }
 
@@ -124,6 +144,9 @@ public class CustomSeekView extends FrameLayout implements TimeBar.OnScrubListen
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         removeCallbacks(refresh);
+        if (player != null && player.getExoPlayer() != null) {
+            player.getExoPlayer().removeListener(playerListener);
+        }
     }
 
     @Override

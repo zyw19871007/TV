@@ -8,6 +8,7 @@ import android.text.TextUtils;
 import android.view.accessibility.CaptioningManager;
 
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.util.Util;
@@ -89,12 +90,13 @@ public class ExoUtil {
         return null;
     }
 
-    public static MediaItem getMediaItem(Map<String, String> headers, Uri uri, String mimeType, Drm drm, List<Sub> subs, int decode) {
+    public static MediaItem getMediaItem(Map<String, String> headers, Uri uri, String mimeType, Drm drm, List<Sub> subs, int decode, @androidx.annotation.Nullable MediaMetadata metadata) {
         MediaItem.Builder builder = new MediaItem.Builder().setUri(uri);
         builder.setRequestMetadata(getRequestMetadata(headers, uri));
         builder.setSubtitleConfigurations(getSubtitleConfigs(subs));
         if (drm != null) builder.setDrmConfiguration(drm.get());
         if (mimeType != null) builder.setMimeType(mimeType);
+        if (metadata != null) builder.setMediaMetadata(metadata);
         builder.setAdblock(Setting.isAdblock());
         builder.setMediaId(uri.toString());
         builder.setImageDurationMs(15000);

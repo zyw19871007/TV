@@ -271,7 +271,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         mObserveDetail = this::setDetail;
         mObservePlayer = this::setPlayer;
         mObserveSearch = this::setSearch;
-        mPlayers = Players.create(this);
+        mPlayers = Players.create();
         mBroken = new ArrayList<>();
         mR1 = this::hideControl;
         mR2 = this::updateFocus;

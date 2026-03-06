@@ -146,7 +146,7 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
         mKeyDown = CustomKeyDown.create(this, mBinding.exo);
         setPadding(mBinding.control.getRoot());
         setPadding(mBinding.recycler, true);
-        mPlayers = Players.create(this);
+        mPlayers = Players.create();
         mObserveEpg = this::setEpg;
         mObserveUrl = this::start;
         mHides = new ArrayList<>();

@@ -93,7 +93,7 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
         bindService(new Intent(this, DLNARendererService.class), this, Context.BIND_AUTO_CREATE);
         mClock = Clock.create(mBinding.widget.clock);
         mKeyDown = CustomKeyDownVod.create(this);
-        mPlayers = Players.create(this);
+        mPlayers = Players.create();
         mR1 = this::hideControl;
         mR2 = this::setTraffic;
         mKeyDown.setFull(true);

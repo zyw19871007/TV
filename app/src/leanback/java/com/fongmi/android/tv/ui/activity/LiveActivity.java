@@ -135,7 +135,7 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
     protected void initView() {
         mClock = Clock.create(mBinding.widget.clock);
         mKeyDown = CustomKeyDownLive.create(this);
-        mPlayers = Players.create(this);
+        mPlayers = Players.create();
         mObserveEpg = this::setEpg;
         mObserveUrl = this::start;
         mHides = new ArrayList<>();
