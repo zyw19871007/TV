@@ -37,8 +37,7 @@ import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.databinding.ActivityLiveBinding;
 import com.fongmi.android.tv.event.ActionEvent;
-import com.fongmi.android.tv.event.ErrorEvent;
-import com.fongmi.android.tv.event.PlayerEvent;
+import com.fongmi.android.tv.player.PlayerListener;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.impl.ConfigCallback;
@@ -67,6 +66,7 @@ import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Traffic;
 
+import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
@@ -75,7 +75,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
-public class LiveActivity extends BaseActivity implements GroupPresenter.OnClickListener, ChannelPresenter.OnClickListener, EpgDataPresenter.OnClickListener, CustomKeyDownLive.Listener, CustomLiveListView.Callback, TrackDialog.Listener, PassCallback, ConfigCallback, LiveCallback {
+public class LiveActivity extends BaseActivity implements GroupPresenter.OnClickListener, ChannelPresenter.OnClickListener, EpgDataPresenter.OnClickListener, CustomKeyDownLive.Listener, CustomLiveListView.Callback, TrackDialog.Listener, PassCallback, ConfigCallback, LiveCallback, PlayerListener {
 
     private ActivityLiveBinding mBinding;
     private ArrayObjectAdapter mChannelAdapter;
@@ -200,6 +200,7 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
         setScale(Setting.getLiveScale());
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setTag(tag = UUID.randomUUID().toString());
+        mPlayers.setListener(this);
         findViewById(R.id.timeBar).setNextFocusUpId(R.id.config);
         mBinding.control.invert.setActivated(Setting.isInvert());
         mBinding.control.across.setActivated(Setting.isAcross());
@@ -770,16 +771,19 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
         }
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onPlayerEvent(PlayerEvent event) {
-        if (!event.tag().equals(tag)) return;
-        switch (event.state()) {
-            case PlayerEvent.PREPARE:
-                setDecode();
-                break;
-            case PlayerEvent.PLAYING:
-                checkPlayImg();
-                break;
+    @Override
+    public void onPrepare(String tag) {
+        setDecode();
+    }
+
+    @Override
+    public void onPlaying(String tag) {
+        checkPlayImg();
+    }
+
+    @Override
+    public void onState(String tag, int state) {
+        switch (state) {
             case Player.STATE_BUFFERING:
                 showProgress();
                 break;
@@ -790,14 +794,33 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
             case Player.STATE_ENDED:
                 checkEnded();
                 break;
-            case PlayerEvent.TRACK:
-                setMetadata();
-                setTrackVisible();
-                break;
-            case PlayerEvent.SIZE:
-                mBinding.widget.size.setText(mPlayers.getSizeText());
-                break;
         }
+    }
+
+    @Override
+    public void onTrack(String tag) {
+        setMetadata();
+        setTrackVisible();
+    }
+
+    @Override
+    public void onSize(String tag) {
+        mBinding.widget.size.setText(mPlayers.getSizeText());
+    }
+
+    @Override
+    public void onError(String tag, String msg) {
+        Track.delete(mPlayers.getUrl());
+        showError(msg);
+        mPlayers.resetTrack();
+        mPlayers.reset();
+        mPlayers.stop();
+        startFlow();
+    }
+
+    @Override
+    public void onUpdate() {
+        EventBus.getDefault().post(new ActionEvent(ActionEvent.UPDATE));
     }
 
     private void checkEnded() {
@@ -819,17 +842,6 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
         String title = mBinding.widget.name.getText().toString();
         String artist = mBinding.widget.play.getText().toString();
         mPlayers.setMetadata(title, artist, mChannel.getLogo());
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onErrorEvent(ErrorEvent event) {
-        if (!event.getTag().equals(tag)) return;
-        Track.delete(mPlayers.getUrl());
-        showError(event.getMsg());
-        mPlayers.resetTrack();
-        mPlayers.reset();
-        mPlayers.stop();
-        startFlow();
     }
 
     private void startFlow() {

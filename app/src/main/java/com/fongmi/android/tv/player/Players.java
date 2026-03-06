@@ -29,9 +29,6 @@ import com.fongmi.android.tv.bean.Drm;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Sub;
 import com.fongmi.android.tv.bean.Track;
-import com.fongmi.android.tv.event.ActionEvent;
-import com.fongmi.android.tv.event.ErrorEvent;
-import com.fongmi.android.tv.event.PlayerEvent;
 import com.fongmi.android.tv.impl.ParseCallback;
 import com.fongmi.android.tv.player.danmaku.DanPlayer;
 import com.fongmi.android.tv.player.exo.ExoUtil;
@@ -68,6 +65,7 @@ public class Players implements Player.Listener, ParseCallback {
     private final Formatter formatter;
     private final Runnable runnable;
 
+    private PlayerListener listener;
     private ExoPlayer exoPlayer;
     private DanPlayer danPlayer;
     private ParseJob parseJob;
@@ -90,7 +88,7 @@ public class Players implements Player.Listener, ParseCallback {
         builder = new StringBuilder();
         speedCtrl = new SpeedController();
         sharingHelper = new SharingHelper(this);
-        runnable = () -> ErrorEvent.timeout(tag);
+        runnable = () -> { if (listener != null) listener.onError(tag, ResUtil.getString(R.string.error_play_timeout)); };
         formatter = new Formatter(builder, Locale.getDefault());
     }
 
@@ -166,6 +164,10 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void setTag(String tag) {
         this.tag = tag;
+    }
+
+    public void setListener(PlayerListener listener) {
+        this.listener = listener;
     }
 
     public void reset() {
@@ -363,13 +365,13 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void start(Result result, boolean useParse, long timeout) {
         if (result.getDrm() != null && !FrameworkMediaDrm.isCryptoSchemeSupported(result.getDrm().getUUID())) {
-            ErrorEvent.drm(tag);
+            if (listener != null) listener.onError(tag, ResUtil.getString(R.string.error_play_drm));
         } else if (result.hasMsg()) {
-            ErrorEvent.extract(tag, result.getMsg());
+            if (listener != null) listener.onError(tag, result.getMsg());
         } else if (result.getParse() == 1 || result.getJx() == 1) {
             startParse(result, useParse);
         } else if (isIllegal(result.getRealUrl())) {
-            ErrorEvent.url(tag);
+            if (listener != null) listener.onError(tag, ResUtil.getString(R.string.error_play_url));
         } else {
             setMediaItem(result, timeout);
         }
@@ -416,7 +418,7 @@ public class Players implements Player.Listener, ParseCallback {
         Logger.t(TAG).d("headers=%s\nurl=%s\nformat=%s\ndrm=%s\nsubs=%s\ndanmakus=%s\ntimeout=%s", params.headers, url, format, drm, params.subs, danmakus, timeout);
         if (danPlayer != null) setDanmaku(danmakus == null || danmakus.isEmpty() ? Danmaku.empty() : danmakus.get(0));
         App.post(runnable, timeout);
-        PlayerEvent.prepare(tag);
+        if (listener != null) listener.onPrepare(tag);
         initTrack = false;
         prepare();
     }
@@ -462,7 +464,7 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void setMetadata(String title, String artist, String artUri) {
         params.setMetadata(title, artist, artUri);
-        ActionEvent.update();
+        if (listener != null) listener.onUpdate();
     }
 
     public void share(android.app.Activity activity, CharSequence title) {
@@ -486,37 +488,40 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onParseError() {
-        ErrorEvent.parse(tag);
+        if (listener != null) listener.onError(tag, ResUtil.getString(R.string.error_play_parse));
     }
 
     @Override
     public void onIsPlayingChanged(boolean isPlaying) {
-        PlayerEvent.playing(tag);
-        ActionEvent.update();
+        if (listener != null) {
+            listener.onPlaying(tag);
+            listener.onUpdate();
+        }
     }
 
     @Override
     public void onPlaybackStateChanged(int state) {
-        PlayerEvent.state(tag, state);
+        if (listener != null) listener.onState(tag, state);
     }
 
     @Override
     public void onVideoSizeChanged(@NonNull VideoSize videoSize) {
-        PlayerEvent.size(tag);
+        if (listener != null) listener.onSize(tag);
     }
 
     @Override
     public void onTracksChanged(@NonNull Tracks tracks) {
         if (tracks.isEmpty() || initTrack) return;
         setTrack(Track.find(getKey()));
-        PlayerEvent.track(tag);
+        if (listener != null) listener.onTrack(tag);
         initTrack = true;
     }
 
     @Override
     public void onPlayerError(@NonNull PlaybackException e) {
-        if (++retry > 2) ErrorEvent.extract(tag, e.getErrorCodeName());
-        else switch (e.errorCode) {
+        if (++retry > 2) {
+            if (listener != null) listener.onError(tag, e.getErrorCodeName());
+        } else switch (e.errorCode) {
             case PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW:
                 seekToDefaultPosition();
                 break;
@@ -533,7 +538,7 @@ public class Players implements Player.Listener, ParseCallback {
                 setFormat(ExoUtil.getMimeType(e.errorCode));
                 break;
             default:
-                ErrorEvent.extract(tag, e.getErrorCodeName());
+                if (listener != null) listener.onError(tag, e.getErrorCodeName());
                 break;
         }
     }

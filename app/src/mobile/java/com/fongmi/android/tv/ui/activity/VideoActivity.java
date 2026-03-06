@@ -59,9 +59,8 @@ import com.fongmi.android.tv.databinding.ActivityVideoBinding;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.ActionEvent;
 import com.fongmi.android.tv.event.CastEvent;
-import com.fongmi.android.tv.event.ErrorEvent;
-import com.fongmi.android.tv.event.PlayerEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
+import com.fongmi.android.tv.player.PlayerListener;
 import com.fongmi.android.tv.impl.CustomTarget;
 import com.fongmi.android.tv.model.SiteViewModel;
 import com.fongmi.android.tv.player.Players;
@@ -100,6 +99,7 @@ import com.github.bassaer.library.MDColor;
 import com.github.catvod.utils.Trans;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
+import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
@@ -112,7 +112,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Matcher;
 
-public class VideoActivity extends BaseActivity implements Clock.Callback, CustomKeyDown.Listener, TrackDialog.Listener, ControlDialog.Listener, FlagAdapter.OnClickListener, EpisodeAdapter.OnClickListener, QualityAdapter.OnClickListener, QuickAdapter.OnClickListener, ParseAdapter.OnClickListener, CastDialog.Listener, InfoDialog.Listener {
+public class VideoActivity extends BaseActivity implements Clock.Callback, CustomKeyDown.Listener, TrackDialog.Listener, ControlDialog.Listener, FlagAdapter.OnClickListener, EpisodeAdapter.OnClickListener, QualityAdapter.OnClickListener, QuickAdapter.OnClickListener, ParseAdapter.OnClickListener, CastDialog.Listener, InfoDialog.Listener, PlayerListener {
 
     private ActivityVideoBinding mBinding;
     private ViewGroup.LayoutParams mFrameParams;
@@ -381,6 +381,7 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setDanmakuView(mBinding.danmaku);
         mPlayers.setTag(tag = UUID.randomUUID().toString());
+        mPlayers.setListener(this);
         if (isPort() && ResUtil.isLand(this)) enterFullscreen();
         mBinding.control.action.decode.setText(mPlayers.getDecodeText());
         mBinding.control.action.danmaku.setVisibility(Setting.isDanmakuLoad() ? View.VISIBLE : View.GONE);
@@ -596,7 +597,7 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         try {
             mPlayers.start(result, isUseParse(), getSite().isChangeable() ? getSite().getTimeout() : -1);
         } catch (Exception e) {
-            ErrorEvent.extract(tag, e.getMessage());
+            onError(tag, e.getMessage());
             e.printStackTrace();
         }
     }
@@ -1035,7 +1036,7 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         boolean empty = item.getFlags().isEmpty();
         mBinding.flag.setVisibility(empty ? View.GONE : View.VISIBLE);
         if (empty) {
-            ErrorEvent.flag(tag);
+            onError(tag, ResUtil.getString(R.string.error_play_flag));
         } else {
             onItemClick(mHistory.getFlag());
             if (mHistory.isRevSort()) reverseEpisode(true);
@@ -1202,17 +1203,20 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         else if (event.getType() == RefreshEvent.Type.DANMAKU) mPlayers.setDanmaku(Danmaku.from(event.getPath()));
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onPlayerEvent(PlayerEvent event) {
-        if (!event.tag().equals(tag)) return;
-        switch (event.state()) {
-            case PlayerEvent.PREPARE:
-                setDecode();
-                setPosition();
-                break;
-            case PlayerEvent.PLAYING:
-                checkPlayImg();
-                break;
+    @Override
+    public void onPrepare(String tag) {
+        setDecode();
+        setPosition();
+    }
+
+    @Override
+    public void onPlaying(String tag) {
+        checkPlayImg();
+    }
+
+    @Override
+    public void onState(String tag, int state) {
+        switch (state) {
             case Player.STATE_BUFFERING:
                 showProgress();
                 break;
@@ -1224,16 +1228,37 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
             case Player.STATE_ENDED:
                 checkEnded(true);
                 break;
-            case PlayerEvent.TRACK:
-                setMetadata();
-                setTrackVisible();
-                mClock.setCallback(this);
-                break;
-            case PlayerEvent.SIZE:
-                changeHeight();
-                checkOrientation();
-                break;
         }
+    }
+
+    @Override
+    public void onTrack(String tag) {
+        setMetadata();
+        setTrackVisible();
+        mClock.setCallback(this);
+    }
+
+    @Override
+    public void onSize(String tag) {
+        changeHeight();
+        checkOrientation();
+    }
+
+    @Override
+    public void onError(String tag, String msg) {
+        mBinding.swipeLayout.setEnabled(true);
+        Track.delete(mPlayers.getUrl());
+        showError(msg);
+        mClock.setCallback(null);
+        mPlayers.resetTrack();
+        mPlayers.reset();
+        mPlayers.stop();
+        startFlow();
+    }
+
+    @Override
+    public void onUpdate() {
+        EventBus.getDefault().post(new ActionEvent(ActionEvent.UPDATE));
     }
 
     private void setPosition() {
@@ -1289,19 +1314,6 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         boolean empty = title.equals(episode) || episode == null;
         String artist = empty ? "" : getString(R.string.play_now, episode);
         mPlayers.setMetadata(title, artist, mHistory.getVodPic());
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onErrorEvent(ErrorEvent event) {
-        if (!event.getTag().equals(tag)) return;
-        mBinding.swipeLayout.setEnabled(true);
-        Track.delete(mPlayers.getUrl());
-        showError(event.getMsg());
-        mClock.setCallback(null);
-        mPlayers.resetTrack();
-        mPlayers.reset();
-        mPlayers.stop();
-        startFlow();
     }
 
     private void startFlow() {

@@ -29,8 +29,7 @@ import com.fongmi.android.tv.Setting;
 import com.fongmi.android.tv.bean.Sub;
 import com.fongmi.android.tv.databinding.ActivityCastBinding;
 import com.fongmi.android.tv.event.ActionEvent;
-import com.fongmi.android.tv.event.ErrorEvent;
-import com.fongmi.android.tv.event.PlayerEvent;
+import com.fongmi.android.tv.player.PlayerListener;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.player.Players;
 import com.fongmi.android.tv.player.exo.ExoUtil;
@@ -45,12 +44,13 @@ import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Traffic;
 
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
+import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
 import java.util.UUID;
 
-public class CastActivity extends BaseActivity implements CustomKeyDownVod.Listener, TrackDialog.Listener, RenderControl, ServiceConnection, Clock.Callback {
+public class CastActivity extends BaseActivity implements CustomKeyDownVod.Listener, TrackDialog.Listener, RenderControl, ServiceConnection, Clock.Callback, PlayerListener {
 
     private ActivityCastBinding mBinding;
     private DLNARendererService mService;
@@ -151,6 +151,7 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
         setScale(scale = Setting.getScale());
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setTag(tag = UUID.randomUUID().toString());
+        mPlayers.setListener(this);
         findViewById(R.id.timeBar).setNextFocusUpId(R.id.reset);
         mBinding.control.speed.setText(mPlayers.getSpeedText());
         mBinding.control.decode.setText(mPlayers.getDecodeText());
@@ -301,14 +302,19 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
         else if (event.getType() == RefreshEvent.Type.SUBTITLE) mPlayers.setSub(Sub.from(event.getPath()));
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onPlayerEvent(PlayerEvent event) {
-        if (!event.tag().equals(tag)) return;
-        switch (event.state()) {
-            case PlayerEvent.PREPARE:
-                setDecode();
-                setState(RenderState.PREPARING);
-                break;
+    @Override
+    public void onPrepare(String tag) {
+        setDecode();
+        setState(RenderState.PREPARING);
+    }
+
+    @Override
+    public void onPlaying(String tag) {
+    }
+
+    @Override
+    public void onState(String tag, int state) {
+        switch (state) {
             case Player.STATE_IDLE:
                 setState(RenderState.IDLE);
                 break;
@@ -325,15 +331,31 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
                 showControl();
                 setState(RenderState.STOPPED);
                 break;
-            case PlayerEvent.TRACK:
-                setMetadata();
-                setTrackVisible();
-                mClock.setCallback(this);
-                break;
-            case PlayerEvent.SIZE:
-                mBinding.widget.size.setText(mPlayers.getSizeText());
-                break;
         }
+    }
+
+    @Override
+    public void onTrack(String tag) {
+        setMetadata();
+        setTrackVisible();
+        mClock.setCallback(this);
+    }
+
+    @Override
+    public void onSize(String tag) {
+        mBinding.widget.size.setText(mPlayers.getSizeText());
+    }
+
+    @Override
+    public void onError(String tag, String msg) {
+        showError(msg);
+        mPlayers.resetTrack();
+        onStopped();
+    }
+
+    @Override
+    public void onUpdate() {
+        EventBus.getDefault().post(new ActionEvent(ActionEvent.UPDATE));
     }
 
     private void setTrackVisible() {
@@ -344,14 +366,6 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
 
     private void setMetadata() {
         mPlayers.setMetadata(mBinding.widget.title.getText().toString(), "", "");
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onErrorEvent(ErrorEvent event) {
-        if (!event.getTag().equals(tag)) return;
-        showError(event.getMsg());
-        mPlayers.resetTrack();
-        onStopped();
     }
 
     private void onPaused() {

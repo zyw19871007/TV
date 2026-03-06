@@ -49,9 +49,8 @@ import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.databinding.ActivityVideoBinding;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.ActionEvent;
-import com.fongmi.android.tv.event.ErrorEvent;
-import com.fongmi.android.tv.event.PlayerEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
+import com.fongmi.android.tv.player.PlayerListener;
 import com.fongmi.android.tv.impl.CustomTarget;
 import com.fongmi.android.tv.model.SiteViewModel;
 import com.fongmi.android.tv.player.Players;
@@ -83,6 +82,7 @@ import com.fongmi.android.tv.utils.Traffic;
 import com.github.bassaer.library.MDColor;
 import com.github.catvod.utils.Trans;
 
+import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
@@ -98,7 +98,7 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.stream.IntStream;
 
-public class VideoActivity extends BaseActivity implements CustomKeyDownVod.Listener, TrackDialog.Listener, ArrayPresenter.OnClickListener, Clock.Callback {
+public class VideoActivity extends BaseActivity implements CustomKeyDownVod.Listener, TrackDialog.Listener, ArrayPresenter.OnClickListener, Clock.Callback, PlayerListener {
 
     private ActivityVideoBinding mBinding;
     private ViewGroup.LayoutParams mFrameParams;
@@ -371,6 +371,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setDanmakuView(mBinding.danmaku);
         mPlayers.setTag(tag = UUID.randomUUID().toString());
+        mPlayers.setListener(this);
         mBinding.control.decode.setText(mPlayers.getDecodeText());
         mBinding.control.danmaku.setVisibility(Setting.isDanmakuLoad() ? View.VISIBLE : View.GONE);
         mBinding.control.reset.setText(ResUtil.getStringArray(R.array.select_reset)[Setting.getReset()]);
@@ -580,7 +581,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         try {
             mPlayers.start(result, isUseParse(), getSite().isChangeable() ? getSite().getTimeout() : -1);
         } catch (Exception e) {
-            ErrorEvent.extract(tag, e.getMessage());
+            onError(tag, e.getMessage());
             e.printStackTrace();
         }
     }
@@ -950,7 +951,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         boolean empty = item.getFlags().isEmpty();
         mBinding.flag.setVisibility(empty ? View.GONE : View.VISIBLE);
         if (empty) {
-            ErrorEvent.flag(tag);
+            onError(tag, ResUtil.getString(R.string.error_play_flag));
         } else {
             setFlagActivated(mHistory.getFlag());
             if (mHistory.isRevSort()) reverseEpisode(true);
@@ -1093,14 +1094,19 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         else if (event.getType() == RefreshEvent.Type.DANMAKU) mPlayers.setDanmaku(Danmaku.from(event.getPath()));
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onPlayerEvent(PlayerEvent event) {
-        if (!event.tag().equals(tag)) return;
-        switch (event.state()) {
-            case PlayerEvent.PREPARE:
-                setDecode();
-                setPosition();
-                break;
+    @Override
+    public void onPrepare(String tag) {
+        setDecode();
+        setPosition();
+    }
+
+    @Override
+    public void onPlaying(String tag) {
+    }
+
+    @Override
+    public void onState(String tag, int state) {
+        switch (state) {
             case Player.STATE_BUFFERING:
                 showProgress();
                 break;
@@ -1111,15 +1117,35 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
             case Player.STATE_ENDED:
                 checkEnded(true);
                 break;
-            case PlayerEvent.TRACK:
-                setMetadata();
-                setTrackVisible();
-                mClock.setCallback(this);
-                break;
-            case PlayerEvent.SIZE:
-                mBinding.widget.size.setText(mPlayers.getSizeText());
-                break;
         }
+    }
+
+    @Override
+    public void onTrack(String tag) {
+        setMetadata();
+        setTrackVisible();
+        mClock.setCallback(this);
+    }
+
+    @Override
+    public void onSize(String tag) {
+        mBinding.widget.size.setText(mPlayers.getSizeText());
+    }
+
+    @Override
+    public void onError(String tag, String msg) {
+        Track.delete(mPlayers.getUrl());
+        showError(msg);
+        mClock.setCallback(null);
+        mPlayers.resetTrack();
+        mPlayers.reset();
+        mPlayers.stop();
+        startFlow();
+    }
+
+    @Override
+    public void onUpdate() {
+        EventBus.getDefault().post(new ActionEvent(ActionEvent.UPDATE));
     }
 
     private void setPosition() {
@@ -1147,18 +1173,6 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         boolean empty = title.equals(episode) || episode == null;
         String artist = empty ? "" : getString(R.string.play_now, episode);
         mPlayers.setMetadata(title, artist, mHistory.getVodPic());
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onErrorEvent(ErrorEvent event) {
-        if (!event.getTag().equals(tag)) return;
-        Track.delete(mPlayers.getUrl());
-        showError(event.getMsg());
-        mClock.setCallback(null);
-        mPlayers.resetTrack();
-        mPlayers.reset();
-        mPlayers.stop();
-        startFlow();
     }
 
     private void startFlow() {
