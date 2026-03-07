@@ -116,6 +116,7 @@ public class Players implements Player.Listener, ParseCallback {
     public void detachView() {
         if (view != null) view.setPlayer(null);
         view = null;
+        listener = null;
     }
 
     void setOnExoPlayerRebuildListener(OnExoPlayerRebuildListener listener) {
