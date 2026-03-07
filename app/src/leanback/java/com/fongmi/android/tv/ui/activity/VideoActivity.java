@@ -57,7 +57,7 @@ import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.player.PlayerListener;
 import com.fongmi.android.tv.impl.CustomTarget;
 import com.fongmi.android.tv.model.SiteViewModel;
-import com.fongmi.android.tv.player.Players;
+import com.fongmi.android.tv.player.Playback;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.ui.adapter.QualityAdapter;
@@ -123,13 +123,13 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     private SiteViewModel mViewModel;
     private List<String> mBroken;
     private History mHistory;
-    private Players mPlayers;
+    private Playback mPlayers;
     private boolean mServiceBound;
     private final ServiceConnection mPlaybackConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             mServiceBound = true;
-            mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayers();
+            mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayback();
             setVideoView();
         }
         @Override

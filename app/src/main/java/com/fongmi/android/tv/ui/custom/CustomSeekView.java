@@ -14,7 +14,7 @@ import androidx.media3.ui.DefaultTimeBar;
 import androidx.media3.ui.TimeBar;
 
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.player.Players;
+import com.fongmi.android.tv.player.Playback;
 
 import java.util.concurrent.TimeUnit;
 
@@ -32,7 +32,7 @@ public class CustomSeekView extends FrameLayout implements TimeBar.OnScrubListen
     private long currentPosition;
     private long currentBuffered;
     private boolean scrubbing;
-    private Players player;
+    private Playback player;
 
     private final Player.Listener playerListener = new Player.Listener() {
         @Override
@@ -65,7 +65,7 @@ public class CustomSeekView extends FrameLayout implements TimeBar.OnScrubListen
         refresh = this::refresh;
     }
 
-    public void setPlayer(Players player) {
+    public void setPlayer(Playback player) {
         removeCallbacks(refresh);
         if (this.player != null && this.player.getExoPlayer() != null) {
             this.player.getExoPlayer().removeListener(playerListener);

@@ -48,7 +48,7 @@ import com.fongmi.android.tv.impl.CustomTarget;
 import com.fongmi.android.tv.impl.LiveCallback;
 import com.fongmi.android.tv.impl.PassCallback;
 import com.fongmi.android.tv.model.LiveViewModel;
-import com.fongmi.android.tv.player.Players;
+import com.fongmi.android.tv.player.Playback;
 import com.fongmi.android.tv.player.Source;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.service.PlaybackService;
@@ -89,13 +89,13 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
     private Observer<Epg> mObserveEpg;
     private LiveViewModel mViewModel;
     private List<Group> mHides;
-    private Players mPlayers;
+    private Playback mPlayers;
     private boolean mServiceBound;
     private final ServiceConnection mPlaybackConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             mServiceBound = true;
-            mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayers();
+            mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayback();
             setVideoView();
         }
         @Override

@@ -1,13 +1,13 @@
 package com.fongmi.android.tv.server;
 
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.player.Players;
+import com.fongmi.android.tv.player.PlaybackState;
 import com.github.catvod.Proxy;
 import com.github.catvod.utils.Util;
 
 public class Server {
 
-    private Players player;
+    private PlaybackState player;
     private Nano nano;
 
     private static class Loader {
@@ -18,11 +18,11 @@ public class Server {
         return Loader.INSTANCE;
     }
 
-    public Players getPlayer() {
+    public PlaybackState getPlayer() {
         return player;
     }
 
-    public void setPlayer(Players player) {
+    public void setPlayer(PlaybackState player) {
         this.player = player;
     }
 

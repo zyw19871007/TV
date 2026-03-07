@@ -16,9 +16,9 @@ import java.util.Map;
 
 public class SharingHelper {
 
-    private final Players players;
+    private final PlaybackState players;
 
-    public SharingHelper(Players players) {
+    public SharingHelper(PlaybackState players) {
         this.players = players;
     }
 

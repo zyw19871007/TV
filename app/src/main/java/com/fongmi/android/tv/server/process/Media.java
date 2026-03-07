@@ -4,7 +4,7 @@ import android.text.TextUtils;
 
 import androidx.media3.common.Player;
 
-import com.fongmi.android.tv.player.Players;
+import com.fongmi.android.tv.player.PlaybackState;
 import com.fongmi.android.tv.server.Nano;
 import com.fongmi.android.tv.server.Server;
 import com.fongmi.android.tv.server.impl.Process;
@@ -26,7 +26,7 @@ public class Media implements Process {
     @Override
     public Response doResponse(IHTTPSession session, String url, Map<String, String> files) {
         if (isNull()) return Nano.ok("{}");
-        Players p = getPlayer();
+        PlaybackState p = getPlayer();
         JsonObject result = new JsonObject();
         result.addProperty("url", TextUtils.isEmpty(p.getUrl()) ? "" : p.getUrl());
         result.addProperty("state", getState(p));
@@ -39,7 +39,7 @@ public class Media implements Process {
         return Nano.ok(result.toString());
     }
 
-    private Players getPlayer() {
+    private PlaybackState getPlayer() {
         return Server.get().getPlayer();
     }
 
@@ -47,11 +47,10 @@ public class Media implements Process {
         return Objects.isNull(getPlayer()) || getPlayer().isEmpty();
     }
 
-    // Map ExoPlayer state to legacy PlaybackStateCompat int constants for HTTP API compatibility:
+    // Map backend state to legacy PlaybackStateCompat int constants for HTTP API compatibility:
     // 0=none, 1=stopped, 2=paused, 3=playing, 6=buffering
-    private int getState(Players p) {
-        if (p.getExoPlayer() == null) return 0;
-        switch (p.getExoPlayer().getPlaybackState()) {
+    private int getState(PlaybackState p) {
+        switch (p.getBackendPlaybackState()) {
             case Player.STATE_BUFFERING: return 6;
             case Player.STATE_READY:     return p.isPlaying() ? 3 : 2;
             case Player.STATE_ENDED:

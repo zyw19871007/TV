@@ -31,7 +31,7 @@ import com.fongmi.android.tv.databinding.ActivityCastBinding;
 import com.fongmi.android.tv.event.ActionEvent;
 import com.fongmi.android.tv.player.PlayerListener;
 import com.fongmi.android.tv.event.RefreshEvent;
-import com.fongmi.android.tv.player.Players;
+import com.fongmi.android.tv.player.Playback;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.ui.base.BaseActivity;
@@ -57,13 +57,13 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
     private CustomKeyDownVod mKeyDown;
     private RenderState mState;
     private CastAction mAction;
-    private Players mPlayers;
+    private Playback mPlayers;
     private boolean mServiceBound;
     private final ServiceConnection mPlaybackConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             mServiceBound = true;
-            mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayers();
+            mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayback();
             setVideoView();
         }
         @Override

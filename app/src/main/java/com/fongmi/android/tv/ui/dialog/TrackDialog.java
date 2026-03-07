@@ -25,7 +25,7 @@ import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.Sub;
 import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.databinding.DialogTrackBinding;
-import com.fongmi.android.tv.player.Players;
+import com.fongmi.android.tv.player.Playback;
 import com.fongmi.android.tv.ui.adapter.TrackAdapter;
 import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
 import com.fongmi.android.tv.utils.FileChooser;
@@ -42,7 +42,7 @@ public final class TrackDialog extends BaseDialog implements TrackAdapter.OnClic
     private final TrackAdapter adapter;
     private DialogTrackBinding binding;
     private Listener listener;
-    private Players player;
+    private Playback player;
     private int type;
 
     public static TrackDialog create() {
@@ -54,7 +54,7 @@ public final class TrackDialog extends BaseDialog implements TrackAdapter.OnClic
         this.provider = new DefaultTrackNameProvider(App.get().getResources());
     }
 
-    public TrackDialog player(Players player) {
+    public TrackDialog player(Playback player) {
         this.player = player;
         return this;
     }

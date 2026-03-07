@@ -17,7 +17,7 @@ import androidx.media3.session.SessionResult;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.event.ActionEvent;
-import com.fongmi.android.tv.player.Players;
+import com.fongmi.android.tv.player.Playback;
 import com.fongmi.android.tv.utils.Notify;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -25,7 +25,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 public class PlaybackService extends MediaSessionService {
 
     private static boolean sRunning;
-    private Players players;
+    private Playback playback;
     private MediaSession mediaSession;
 
     public static boolean isRunning() {
@@ -35,13 +35,13 @@ public class PlaybackService extends MediaSessionService {
     // ---- Binder ----
 
     public class PlaybackBinder extends Binder {
-        public Players getPlayers() { return players; }
+        public Playback getPlayback() { return playback; }
     }
 
     @Override
     public IBinder onBind(Intent intent) {
         IBinder sessionBinder = super.onBind(intent);
-        // Return our PlaybackBinder so Activities can access Players directly.
+        // Return our PlaybackBinder so Activities can access Playback directly.
         // MediaSessionService.onBind() handles its own session token intents separately.
         return sessionBinder != null ? sessionBinder : new PlaybackBinder();
     }
@@ -58,10 +58,10 @@ public class PlaybackService extends MediaSessionService {
                 .setNotificationId(Notify.ID)
                 .build()
         );
-        players = Players.create();
-        players.buildExoPlayer();
-        players.setOnExoPlayerRebuildListener(this::onExoPlayerRebuilt);
-        createMediaSession(players.getExoPlayer());
+        playback = Playback.create();
+        playback.buildExoPlayer();
+        playback.setOnExoPlayerRebuildListener(this::onExoPlayerRebuilt);
+        createMediaSession(playback.getExoPlayer());
     }
 
     private void createMediaSession(ExoPlayer player) {
@@ -92,7 +92,7 @@ public class PlaybackService extends MediaSessionService {
     @Override
     public void onDestroy() {
         sRunning = false;
-        if (players != null) players.release();
+        if (playback != null) playback.release();
         if (mediaSession != null) {
             mediaSession.release();
             mediaSession = null;
