@@ -109,7 +109,6 @@ public class Players implements Player.Listener, ParseCallback {
         view.setRender(Setting.getRender());
         view.setPlayer(exoPlayer);
         this.view = view;
-        setMediaItem();
     }
 
     /** Called by Activity on destroy — detaches PlayerView without releasing ExoPlayer. */
@@ -121,13 +120,6 @@ public class Players implements Player.Listener, ParseCallback {
 
     void setOnExoPlayerRebuildListener(OnExoPlayerRebuildListener listener) {
         this.rebuildListener = listener;
-    }
-
-    /** Legacy entry point kept for compatibility; not used in Service-owned architecture. */
-    public void init(PlayerView view) {
-        releasePlayer();
-        setPlayer(view);
-        setMediaItem();
     }
 
     private void setPlayer(@Nullable PlayerView view) {
@@ -323,10 +315,12 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void toggleDecode() {
         decode = isHard() ? SOFT : HARD;
+        long position = getPosition();
         releaseExoPlayerOnly();
         setPlayer(view);
         setMediaItem();
         if (rebuildListener != null) rebuildListener.onExoPlayerRebuilt(exoPlayer);
+        if (position > 0) seekTo(position);
     }
 
     private void releaseExoPlayerOnly() {

@@ -59,6 +59,7 @@ public class PlaybackParams {
         format = null;
         subs = null;
         drm = null;
+        sub = null;
         url = null;
     }
 
