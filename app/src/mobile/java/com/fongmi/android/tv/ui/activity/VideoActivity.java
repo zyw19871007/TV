@@ -1100,7 +1100,13 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
 
     private void checkPlayImg() {
         mBinding.control.play.setImageResource(mPlayers.isPlaying() ? androidx.media3.ui.R.drawable.exo_icon_pause : androidx.media3.ui.R.drawable.exo_icon_play);
-        mPiP.update(this, mPlayers.isPlaying());
+        // Post asynchronously to avoid a potential deadlock: this method can be called
+        // synchronously from exoPlayer.pause() while still inside a BroadcastReceiver
+        // onReceive() that was triggered by a PiP button press. Calling
+        // setPictureInPictureParams() synchronously in that context can deadlock against
+        // the WindowManager lock held by the system for the PiP button-press delivery.
+        boolean playing = mPlayers.isPlaying();
+        mBinding.getRoot().post(() -> mPiP.update(this, playing));
     }
 
     private void checkKeepImg() {

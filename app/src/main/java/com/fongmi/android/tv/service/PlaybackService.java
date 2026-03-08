@@ -50,18 +50,23 @@ public class PlaybackService extends MediaSessionService {
 
     @Override
     public void onCreate() {
+        // setMediaNotificationProvider MUST be called before super.onCreate().
         setMediaNotificationProvider(
                 new DefaultMediaNotificationProvider.Builder(this)
                         .setChannelId(Notify.DEFAULT)
                         .setNotificationId(Notify.ID)
                         .build()
         );
-        super.onCreate();
-        sRunning = true;
+        // ExoPlayer and MediaSession MUST be created before super.onCreate() so that
+        // onGetSession() returns a valid session when MediaNotificationManager initializes
+        // during super.onCreate(). If mediaSession is null at that point, no notification
+        // is ever shown.
         playback = Playback.create();
         playback.buildExoPlayer();
         playback.setOnExoPlayerRebuildListener(this::onExoPlayerRebuilt);
         createMediaSession(playback.getExoPlayer());
+        super.onCreate();
+        sRunning = true;
     }
 
     private void createMediaSession(ExoPlayer player) {
