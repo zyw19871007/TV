@@ -50,9 +50,9 @@ class PlaybackSession implements ParseCallback {
     }
 
     void start(Result result, boolean useParse, long timeout) {
+        stopParse();
         if (result.getParse() == 1 || result.getJx() == 1) {
             params.setParse(result.getFormat(), result.getDrm(), result.getSubs(), result.getDanmaku());
-            stopParse();
             parseJob = ParseJob.create(this).start(result, useParse);
         } else {
             doLoad(result.getHeader(), result.getRealUrl(), result.getFormat(), result.getDrm(), result.getSubs(), result.getDanmaku(), timeout);
@@ -93,9 +93,11 @@ class PlaybackSession implements ParseCallback {
     void stopParse() {
         if (parseJob != null) parseJob.stop();
         parseJob = null;
+        cancelTimeout();
     }
 
     private void doLoad(Map<String, String> headers, String url, String format, Drm drm, List<Sub> subs, List<Danmaku> danmakus, long timeout) {
+        cancelTimeout();
         params.setMedia(headers, url, format, drm, subs, danmakus);
         core.loadMedia(params.getHeaders(), url, format, drm, params.checkSub(subs), params.buildMediaMetadata(), core.getDecode());
         App.post(timeoutRunnable, timeout);
