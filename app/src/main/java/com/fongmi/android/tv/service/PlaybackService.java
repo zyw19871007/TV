@@ -117,7 +117,7 @@ public class PlaybackService extends MediaSessionService {
                 @NonNull MediaSession session,
                 @NonNull MediaSession.ControllerInfo controller) {
             if (session.isMediaNotificationController(controller)) {
-                return MediaSession.ConnectionResult.DEFAULT_SESSION_AND_PLAYER_COMMANDS;
+                return MediaSession.Callback.super.onConnect(session, controller);
             }
             return MediaSession.ConnectionResult.accept(
                 SessionCommands.EMPTY,
