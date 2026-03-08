@@ -13,14 +13,10 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.DefaultMediaNotificationProvider;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
-import androidx.media3.session.SessionResult;
-
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.event.ActionEvent;
 import com.fongmi.android.tv.player.Playback;
 import com.fongmi.android.tv.utils.Notify;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 
 public class PlaybackService extends MediaSessionService {
 
@@ -133,9 +129,8 @@ public class PlaybackService extends MediaSessionService {
             );
         }
 
-        @NonNull
         @Override
-        public ListenableFuture<SessionResult> onMediaButtonEvent(
+        public boolean onMediaButtonEvent(
                 @NonNull MediaSession session,
                 @NonNull MediaSession.ControllerInfo controllerInfo,
                 @NonNull Intent mediaButtonIntent) {
@@ -144,13 +139,13 @@ public class PlaybackService extends MediaSessionService {
                 switch (key.getKeyCode()) {
                     case KeyEvent.KEYCODE_MEDIA_NEXT:
                         ActionEvent.next();
-                        return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+                        return true;
                     case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
                         ActionEvent.prev();
-                        return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+                        return true;
                     case KeyEvent.KEYCODE_MEDIA_STOP:
                         ActionEvent.stop();
-                        return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+                        return true;
                 }
             }
             return MediaSession.Callback.super.onMediaButtonEvent(session, controllerInfo, mediaButtonIntent);
