@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.DefaultMediaNotificationProvider;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
+import androidx.media3.session.SessionCommands;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.event.ActionEvent;
 import com.fongmi.android.tv.player.Playback;
@@ -46,14 +47,14 @@ public class PlaybackService extends MediaSessionService {
 
     @Override
     public void onCreate() {
-        super.onCreate();
-        sRunning = true;
         setMediaNotificationProvider(
             new DefaultMediaNotificationProvider.Builder(this)
                 .setChannelId(Notify.DEFAULT)
                 .setNotificationId(Notify.ID)
                 .build()
         );
+        super.onCreate();
+        sRunning = true;
         playback = Playback.create();
         playback.buildExoPlayer();
         playback.setOnExoPlayerRebuildListener(this::onExoPlayerRebuilt);
@@ -115,8 +116,11 @@ public class PlaybackService extends MediaSessionService {
         public MediaSession.ConnectionResult onConnect(
                 @NonNull MediaSession session,
                 @NonNull MediaSession.ControllerInfo controller) {
+            if (session.isMediaNotificationController(controller)) {
+                return MediaSession.ConnectionResult.DEFAULT_SESSION_AND_PLAYER_COMMANDS;
+            }
             return MediaSession.ConnectionResult.accept(
-                androidx.media3.session.SessionCommands.EMPTY,
+                SessionCommands.EMPTY,
                 new Player.Commands.Builder()
                     .addAll(
                         Player.COMMAND_PLAY_PAUSE,
