@@ -26,9 +26,13 @@ import java.util.Map;
 class PlaybackSession implements ParseCallback {
 
     interface Listener {
-        /** Called when a concrete URL + headers are ready to be loaded into the Core. */
+        /**
+         * Called when a concrete URL + headers are ready to be loaded into the Core.
+         */
         void onMediaReady(Map<String, String> headers, String url, List<Danmaku> danmakus, long timeout);
+
         void onParseError();
+
         void onTimeout();
     }
 
@@ -63,7 +67,9 @@ class PlaybackSession implements ParseCallback {
         if (!params.isEmpty()) doLoad(params.getHeaders(), params.getUrl(), params.getFormat(), params.getDrm(), params.getRawSubs(), params.getDanmakus(), Constant.TIMEOUT_PLAY);
     }
 
-    /** Loads a new URL keeping existing format/drm/subs (used by CastActivity direct URL load). */
+    /**
+     * Loads a new URL keeping existing format/drm/subs (used by CastActivity direct URL load).
+     */
     void loadUrl(String url) {
         doLoad(new HashMap<>(), url, params.getFormat(), params.getDrm(), params.getRawSubs(), params.getDanmakus(), Constant.TIMEOUT_PLAY);
     }

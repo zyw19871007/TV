@@ -98,6 +98,7 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
             mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayback();
             setVideoView();
         }
+
         @Override
         public void onServiceDisconnected(ComponentName name) {
             mServiceBound = false;
@@ -1082,7 +1083,10 @@ public class LiveActivity extends BaseActivity implements GroupPresenter.OnClick
     @Override
     protected void onDestroy() {
         if (mPlayers != null) mPlayers.detachView();
-        if (mServiceBound) { unbindService(mPlaybackConnection); mServiceBound = false; }
+        if (mServiceBound) {
+            unbindService(mPlaybackConnection);
+            mServiceBound = false;
+        }
         Source.get().exit();
         PlaybackService.stop();
         mViewModel.url.removeObserver(mObserveUrl);

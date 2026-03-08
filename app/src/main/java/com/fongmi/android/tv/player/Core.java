@@ -22,57 +22,88 @@ public interface Core {
 
     // Lifecycle
     void build();
+
     void release();
+
     void releaseOnly();
 
     // View management
     void attachView(PlayerView view);
+
     void detachView();
 
     // Danmaku
     void setDanmakuView(DanmakuView view);
+
     void setDanmaku(Danmaku item);
+
     void setDanmakuSize(float size);
 
     // Media loading
     void loadMedia(Map<String, String> headers, String url, String format, Drm drm, List<Sub> subs, @Nullable MediaMetadata metadata, int decode);
+
     void prepare();
+
     void clearMediaItems();
 
     // Playback control
     void play();
+
     void pause();
+
     void stop();
+
     void seekTo(long positionMs);
+
     void seekToDefaultPosition();
 
     // Decode
     int getDecode();
+
     void setDecode(int decode);
+
     boolean isHard();
+
     String getDecodeText();
 
     // State queries
     boolean isPlaying();
+
     boolean isEnded();
+
     boolean isIdle();
+
     int getPlaybackState();
+
     long getCurrentPosition();
+
     long getDuration();
+
     long getBufferedPosition();
+
     int getVideoWidth();
+
     int getVideoHeight();
+
     boolean haveTrack(int type);
+
     void resetTrack();
+
     void setTrack(List<Track> tracks);
 
     // Speed
     float getSpeed();
+
     String getSpeedText();
+
     String setSpeed(float speed);
+
     String addSpeed();
+
     String addSpeed(float value);
+
     String subSpeed(float value);
+
     String toggleSpeed();
 
     // Events
@@ -80,5 +111,6 @@ public interface Core {
 
     // Identity
     int getType();
+
     boolean supportsNativeMediaSession();
 }

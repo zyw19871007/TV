@@ -5,11 +5,11 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.os.IBinder;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -41,7 +41,6 @@ import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.databinding.ActivityLiveBinding;
 import com.fongmi.android.tv.event.ActionEvent;
-import com.fongmi.android.tv.player.PlayerListener;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.impl.ConfigCallback;
@@ -50,6 +49,7 @@ import com.fongmi.android.tv.impl.LiveCallback;
 import com.fongmi.android.tv.impl.PassCallback;
 import com.fongmi.android.tv.model.LiveViewModel;
 import com.fongmi.android.tv.player.Playback;
+import com.fongmi.android.tv.player.PlayerListener;
 import com.fongmi.android.tv.player.Source;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.service.PlaybackService;
@@ -73,7 +73,6 @@ import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Traffic;
 import com.fongmi.android.tv.utils.Util;
 
-import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
@@ -102,6 +101,7 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
             mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayback();
             setVideoView();
         }
+
         @Override
         public void onServiceDisconnected(ComponentName name) {
             mServiceBound = false;
@@ -1181,7 +1181,10 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
     @Override
     protected void onDestroy() {
         if (mPlayers != null) mPlayers.detachView();
-        if (mServiceBound) { unbindService(mPlaybackConnection); mServiceBound = false; }
+        if (mServiceBound) {
+            unbindService(mPlaybackConnection);
+            mServiceBound = false;
+        }
         Source.get().exit();
         PlaybackService.stop();
         App.removeCallbacks(mR1, mR2, mR3);

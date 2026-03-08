@@ -51,11 +51,15 @@ public class Media implements Process {
     // 0=none, 1=stopped, 2=paused, 3=playing, 6=buffering
     private int getState(PlaybackState p) {
         switch (p.getBackendPlaybackState()) {
-            case Player.STATE_BUFFERING: return 6;
-            case Player.STATE_READY:     return p.isPlaying() ? 3 : 2;
+            case Player.STATE_BUFFERING:
+                return 6;
+            case Player.STATE_READY:
+                return p.isPlaying() ? 3 : 2;
             case Player.STATE_ENDED:
-            case Player.STATE_IDLE:      return 1;
-            default:                     return 0;
+            case Player.STATE_IDLE:
+                return 1;
+            default:
+                return 0;
         }
     }
 }

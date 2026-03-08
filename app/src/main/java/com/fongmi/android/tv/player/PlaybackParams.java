@@ -18,7 +18,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Mutable value object that holds all parameters describing the current/pending media item. */
+/**
+ * Mutable value object that holds all parameters describing the current/pending media item.
+ */
 public class PlaybackParams {
 
     Map<String, String> headers;
@@ -36,17 +38,29 @@ public class PlaybackParams {
 
     // ---- public accessors ----
 
-    public String getUrl() { return url; }
+    public String getUrl() {
+        return url;
+    }
 
-    public Map<String, String> getHeaders() { return headers == null ? new HashMap<>() : headers; }
+    public Map<String, String> getHeaders() {
+        return headers == null ? new HashMap<>() : headers;
+    }
 
-    public List<Danmaku> getDanmakus() { return danmakus; }
+    public List<Danmaku> getDanmakus() {
+        return danmakus;
+    }
 
-    public String getKey() { return key != null ? key : url; }
+    public String getKey() {
+        return key != null ? key : url;
+    }
 
-    public void setKey(String key) { this.key = key; }
+    public void setKey(String key) {
+        this.key = key;
+    }
 
-    public boolean isEmpty() { return TextUtils.isEmpty(url); }
+    public boolean isEmpty() {
+        return TextUtils.isEmpty(url);
+    }
 
     public boolean haveDanmaku() {
         if (danmakus != null) for (Danmaku d : danmakus) if (d.isSelected()) return true;
@@ -63,11 +77,17 @@ public class PlaybackParams {
         url = null;
     }
 
-    public String getMetaTitle() { return metaTitle; }
+    public String getMetaTitle() {
+        return metaTitle;
+    }
 
-    public String getMetaArtist() { return metaArtist; }
+    public String getMetaArtist() {
+        return metaArtist;
+    }
 
-    public String getMetaArtUri() { return metaArtUri; }
+    public String getMetaArtUri() {
+        return metaArtUri;
+    }
 
     public void setMetadata(String title, String artist, String artUri) {
         metaTitle = title;
@@ -93,9 +113,13 @@ public class PlaybackParams {
         this.danmakus = danmakus;
     }
 
-    void setSub(Sub sub) { this.sub = sub; }
+    void setSub(Sub sub) {
+        this.sub = sub;
+    }
 
-    void setFormat(String format) { this.format = format; }
+    void setFormat(String format) {
+        this.format = format;
+    }
 
     void applyDanmaku(Danmaku item) {
         if (danmakus == null) danmakus = new ArrayList<>();
@@ -103,11 +127,17 @@ public class PlaybackParams {
         danmakus.forEach(d -> d.setSelected(d.getUrl().equals(item.getUrl())));
     }
 
-    String getFormat() { return format; }
+    String getFormat() {
+        return format;
+    }
 
-    Drm getDrm() { return drm; }
+    Drm getDrm() {
+        return drm;
+    }
 
-    List<Sub> getRawSubs() { return subs; }
+    List<Sub> getRawSubs() {
+        return subs;
+    }
 
     // ---- package-private helpers used during media item construction ----
 

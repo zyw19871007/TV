@@ -132,6 +132,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
             mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayback();
             setVideoView();
         }
+
         @Override
         public void onServiceDisconnected(ComponentName name) {
             mServiceBound = false;
@@ -149,6 +150,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     private Clock mClock;
     private View mFocus1;
     private View mFocus2;
+
     public static void push(FragmentActivity activity, String text) {
         if (FileChooser.isValid(activity, Uri.parse(text))) file(activity, FileChooser.getPathFromUri(Uri.parse(text)));
         else start(activity, Sniffer.getUrl(text));
@@ -1469,7 +1471,10 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         saveHistory();
         mClock.release();
         if (mPlayers != null) mPlayers.detachView();
-        if (mServiceBound) { unbindService(mPlaybackConnection); mServiceBound = false; }
+        if (mServiceBound) {
+            unbindService(mPlaybackConnection);
+            mServiceBound = false;
+        }
         RefreshEvent.keep();
         RefreshEvent.history();
         PlaybackService.stop();

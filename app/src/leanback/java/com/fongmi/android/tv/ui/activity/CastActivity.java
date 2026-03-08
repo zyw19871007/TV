@@ -49,7 +49,6 @@ import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
 
-
 public class CastActivity extends BaseActivity implements CustomKeyDownVod.Listener, TrackDialog.Listener, RenderControl, ServiceConnection, Clock.Callback, PlayerListener {
 
     private ActivityCastBinding mBinding;
@@ -66,6 +65,7 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
             mPlayers = ((PlaybackService.PlaybackBinder) service).getPlayback();
             setVideoView();
         }
+
         @Override
         public void onServiceDisconnected(ComponentName name) {
             mServiceBound = false;
@@ -563,7 +563,10 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
     protected void onDestroy() {
         mClock.release();
         if (mPlayers != null) mPlayers.detachView();
-        if (mServiceBound) { unbindService(mPlaybackConnection); mServiceBound = false; }
+        if (mServiceBound) {
+            unbindService(mPlaybackConnection);
+            mServiceBound = false;
+        }
         unbindService(this);
         PlaybackService.stop();
         mService.bindRealPlayer(null);

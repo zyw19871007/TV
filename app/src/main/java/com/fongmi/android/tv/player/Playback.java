@@ -76,39 +76,51 @@ public class Playback implements PlaybackState, CoreListener, PlaybackSession.Li
 
     // ---- PlaybackService integration ----
 
-    /** Builds the ExoPlayer without attaching a view; called by PlaybackService.onCreate(). */
+    /**
+     * Builds the ExoPlayer without attaching a view; called by PlaybackService.onCreate().
+     */
     public void buildExoPlayer() {
         core.release();
         core.build();
     }
 
-    /** Returns the underlying ExoPlayer for MediaSession construction; null if not ExoCore. */
+    /**
+     * Returns the underlying ExoPlayer for MediaSession construction; null if not ExoCore.
+     */
     @Nullable
     public ExoPlayer getExoPlayer() {
         if (core instanceof ExoCore) return ((ExoCore) core).getExoPlayer();
         return null;
     }
 
-    /** Alias for {@link #getExoPlayer()}; used by dialogs that need direct ExoPlayer access. */
+    /**
+     * Alias for {@link #getExoPlayer()}; used by dialogs that need direct ExoPlayer access.
+     */
     @Nullable
     public ExoPlayer get() {
         return getExoPlayer();
     }
 
-    /** Registers a listener notified when ExoPlayer is rebuilt after toggleDecode(). */
+    /**
+     * Registers a listener notified when ExoPlayer is rebuilt after toggleDecode().
+     */
     public void setOnExoPlayerRebuildListener(ExoCore.RebuildListener listener) {
         if (core instanceof ExoCore) ((ExoCore) core).setRebuildListener(listener);
     }
 
     // ---- View lifecycle ----
 
-    /** Attaches a PlayerView after Activity binds to the service. */
+    /**
+     * Attaches a PlayerView after Activity binds to the service.
+     */
     public void attachView(PlayerView view) {
         core.setCoreListener(this);
         core.attachView(view);
     }
 
-    /** Detaches the PlayerView when Activity is destroyed; ExoPlayer keeps running. */
+    /**
+     * Detaches the PlayerView when Activity is destroyed; ExoPlayer keeps running.
+     */
     public void detachView() {
         core.detachView();
         listener = null;
@@ -156,17 +168,60 @@ public class Playback implements PlaybackState, CoreListener, PlaybackSession.Li
 
     // ---- PlaybackState (read-only, used by Server / SharingHelper) ----
 
-    @Override public boolean isEmpty()                 { return session.getParams().isEmpty(); }
-    @Override public String getUrl()                   { return session.getParams().getUrl(); }
-    @Override public Map<String, String> getHeaders()  { return session.getParams().getHeaders(); }
-    @Override public boolean isPlaying()               { return core.isPlaying(); }
-    @Override public long getPosition()                { return core.getCurrentPosition(); }
-    @Override public long getDuration()                { return core.getDuration(); }
-    @Override public float getSpeed()                  { return core.getSpeed(); }
-    @Override public String getMetaTitle()             { return session.getParams().getMetaTitle(); }
-    @Override public String getMetaArtist()            { return session.getParams().getMetaArtist(); }
-    @Override public String getMetaArtUri()            { return session.getParams().getMetaArtUri(); }
-    @Override public void seekTo(long positionMs)      { core.seekTo(positionMs); }
+    @Override
+    public boolean isEmpty() {
+        return session.getParams().isEmpty();
+    }
+
+    @Override
+    public String getUrl() {
+        return session.getParams().getUrl();
+    }
+
+    @Override
+    public Map<String, String> getHeaders() {
+        return session.getParams().getHeaders();
+    }
+
+    @Override
+    public boolean isPlaying() {
+        return core.isPlaying();
+    }
+
+    @Override
+    public long getPosition() {
+        return core.getCurrentPosition();
+    }
+
+    @Override
+    public long getDuration() {
+        return core.getDuration();
+    }
+
+    @Override
+    public float getSpeed() {
+        return core.getSpeed();
+    }
+
+    @Override
+    public String getMetaTitle() {
+        return session.getParams().getMetaTitle();
+    }
+
+    @Override
+    public String getMetaArtist() {
+        return session.getParams().getMetaArtist();
+    }
+
+    @Override
+    public String getMetaArtUri() {
+        return session.getParams().getMetaArtUri();
+    }
+
+    @Override
+    public void seekTo(long positionMs) {
+        core.seekTo(positionMs);
+    }
 
     @Override
     public boolean isVod() {
@@ -190,28 +245,89 @@ public class Playback implements PlaybackState, CoreListener, PlaybackSession.Li
 
     // ---- Additional helpers (used by Activities / dialogs) ----
 
-    public long getBuffered()             { return core.getBufferedPosition(); }
-    public boolean isEnded()             { return core.isEnded(); }
-    public boolean isIdle()              { return core.isIdle(); }
-    public boolean isHard()              { return core.isHard(); }
-    public boolean isPortrait()          { return core.getVideoHeight() > core.getVideoWidth(); }
-    public boolean isLandscape()         { return core.getVideoWidth() > core.getVideoHeight(); }
-    public int getVideoWidth()           { return core.getVideoWidth(); }
-    public int getVideoHeight()          { return core.getVideoHeight(); }
-    public boolean haveTrack(int type)   { return core.haveTrack(type); }
-    public String getDecodeText()        { return core.getDecodeText(); }
-    public String getSpeedText()         { return core.getSpeedText(); }
-    public String setSpeed(float speed)  { return core.setSpeed(speed); }
-    public String addSpeed()             { return core.addSpeed(); }
-    public String addSpeed(float value)  { return core.addSpeed(value); }
-    public String subSpeed(float value)  { return core.subSpeed(value); }
-    public String toggleSpeed()          { return core.toggleSpeed(); }
-    public void clearMediaItems()        { core.clearMediaItems(); }
-    public void resetTrack()             { core.resetTrack(); }
-    public void setTrack(List<Track> tracks) { core.setTrack(tracks); }
+    public long getBuffered() {
+        return core.getBufferedPosition();
+    }
 
-    public String getKey()               { return session.getParams().getKey(); }
-    public void setKey(String key)       { session.getParams().setKey(key); }
+    public boolean isEnded() {
+        return core.isEnded();
+    }
+
+    public boolean isIdle() {
+        return core.isIdle();
+    }
+
+    public boolean isHard() {
+        return core.isHard();
+    }
+
+    public boolean isPortrait() {
+        return core.getVideoHeight() > core.getVideoWidth();
+    }
+
+    public boolean isLandscape() {
+        return core.getVideoWidth() > core.getVideoHeight();
+    }
+
+    public int getVideoWidth() {
+        return core.getVideoWidth();
+    }
+
+    public int getVideoHeight() {
+        return core.getVideoHeight();
+    }
+
+    public boolean haveTrack(int type) {
+        return core.haveTrack(type);
+    }
+
+    public String getDecodeText() {
+        return core.getDecodeText();
+    }
+
+    public String getSpeedText() {
+        return core.getSpeedText();
+    }
+
+    public String setSpeed(float speed) {
+        return core.setSpeed(speed);
+    }
+
+    public String addSpeed() {
+        return core.addSpeed();
+    }
+
+    public String addSpeed(float value) {
+        return core.addSpeed(value);
+    }
+
+    public String subSpeed(float value) {
+        return core.subSpeed(value);
+    }
+
+    public String toggleSpeed() {
+        return core.toggleSpeed();
+    }
+
+    public void clearMediaItems() {
+        core.clearMediaItems();
+    }
+
+    public void resetTrack() {
+        core.resetTrack();
+    }
+
+    public void setTrack(List<Track> tracks) {
+        core.setTrack(tracks);
+    }
+
+    public String getKey() {
+        return session.getParams().getKey();
+    }
+
+    public void setKey(String key) {
+        session.getParams().setKey(key);
+    }
 
     public void setMetadata(String title, String artist, String artUri) {
         session.getParams().setMetadata(title, artist, artUri);
@@ -259,15 +375,22 @@ public class Playback implements PlaybackState, CoreListener, PlaybackSession.Li
 
     // ---- Playback controls ----
 
-    public void play()    { core.play(); }
-    public void pause()   { core.pause(); }
+    public void play() {
+        core.play();
+    }
+
+    public void pause() {
+        core.pause();
+    }
 
     public void stop() {
         core.stop();
         session.stopParse();
     }
 
-    public void prepare() { core.prepare(); }
+    public void prepare() {
+        core.prepare();
+    }
 
     public void release() {
         session.stopParse();
@@ -292,12 +415,16 @@ public class Playback implements PlaybackState, CoreListener, PlaybackSession.Li
         }
     }
 
-    /** Re-loads the current media item (e.g. after changing format/sub). */
+    /**
+     * Re-loads the current media item (e.g. after changing format/sub).
+     */
     public void setMediaItem() {
         session.reload();
     }
 
-    /** Loads a new URL using existing params (headers, format, drm, subs). */
+    /**
+     * Loads a new URL using existing params (headers, format, drm, subs).
+     */
     public void setMediaItem(String url) {
         session.loadUrl(url);
     }

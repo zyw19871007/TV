@@ -40,7 +40,9 @@ import master.flame.danmaku.ui.widget.DanmakuView;
 
 public class ExoCore implements Core, Player.Listener {
 
-    /** Notified when ExoPlayer is rebuilt (e.g. after toggleDecode), so PlaybackService can update MediaSession. */
+    /**
+     * Notified when ExoPlayer is rebuilt (e.g. after toggleDecode), so PlaybackService can update MediaSession.
+     */
     public interface RebuildListener {
         void onExoPlayerRebuilt(ExoPlayer newPlayer);
     }
@@ -58,7 +60,9 @@ public class ExoCore implements Core, Player.Listener {
         this.speedCtrl = new SpeedController();
     }
 
-    /** Returns the underlying ExoPlayer instance; used by PlaybackService to build MediaSession. */
+    /**
+     * Returns the underlying ExoPlayer instance; used by PlaybackService to build MediaSession.
+     */
     public ExoPlayer getExoPlayer() {
         return exoPlayer;
     }
@@ -95,7 +99,9 @@ public class ExoCore implements Core, Player.Listener {
         exoPlayer = null;
     }
 
-    /** Releases only ExoPlayer (not DanPlayer or view); used before rebuild for toggleDecode. */
+    /**
+     * Releases only ExoPlayer (not DanPlayer or view); used before rebuild for toggleDecode.
+     */
     @Override
     public void releaseOnly() {
         if (danPlayer != null) danPlayer.setPlayer(null);
