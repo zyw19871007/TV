@@ -4,8 +4,8 @@ import androidx.media3.common.Format;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.common.TrackSelectionParameters;
+import androidx.media3.common.Player;
 import androidx.media3.common.Tracks;
-import androidx.media3.exoplayer.ExoPlayer;
 
 import com.fongmi.android.tv.bean.Track;
 
@@ -22,11 +22,11 @@ public class TrackUtil {
         return tracks.getGroups().stream().filter(trackGroup -> trackGroup.getType() == type).mapToInt(trackGroup -> trackGroup.length).sum();
     }
 
-    public static void reset(ExoPlayer player) {
+    public static void reset(Player player) {
         player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon().clearOverrides().build());
     }
 
-    private static TrackInfo find(ExoPlayer player, Track track) {
+    private static TrackInfo find(Player player, Track track) {
         Tracks currentTracks = player.getCurrentTracks();
         for (Tracks.Group trackGroup : currentTracks.getGroups()) {
             if (trackGroup.getType() != track.getType()) continue;
@@ -40,7 +40,7 @@ public class TrackUtil {
         return null;
     }
 
-    public static void setTrackSelection(ExoPlayer player, List<Track> tracks) {
+    public static void setTrackSelection(Player player, List<Track> tracks) {
         Map<Integer, TrackGroup> mediaGroupMapByType = new HashMap<>();
         Map<Integer, Integer> selectedIndexMapByType = new HashMap<>();
         for (Track track : tracks) {

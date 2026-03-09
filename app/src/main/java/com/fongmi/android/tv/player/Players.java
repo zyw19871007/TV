@@ -1,41 +1,28 @@
 package com.fongmi.android.tv.player;
 
 import static androidx.media3.common.Player.COMMAND_SET_SPEED_AND_PITCH;
-import static androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON;
-import static androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER;
 
 import android.app.Activity;
-import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.v4.media.MediaMetadataCompat;
-import android.support.v4.media.session.MediaControllerCompat;
-import android.support.v4.media.session.MediaSessionCompat;
-import android.support.v4.media.session.PlaybackStateCompat;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.media3.common.AudioAttributes;
-import androidx.media3.common.C;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
+import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
-import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.exoplayer.drm.FrameworkMediaDrm;
-import androidx.media3.exoplayer.util.EventLogger;
+import androidx.media3.session.MediaController;
 import androidx.media3.ui.PlayerView;
 
-import com.bumptech.glide.request.transition.Transition;
 import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.Constant;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.Setting;
@@ -44,20 +31,16 @@ import com.fongmi.android.tv.bean.Drm;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Sub;
 import com.fongmi.android.tv.bean.Track;
-import com.fongmi.android.tv.event.ActionEvent;
 import com.fongmi.android.tv.event.ErrorEvent;
 import com.fongmi.android.tv.event.PlayerEvent;
-import com.fongmi.android.tv.impl.CustomTarget;
 import com.fongmi.android.tv.impl.ParseCallback;
-import com.fongmi.android.tv.impl.SessionCallback;
 import com.fongmi.android.tv.player.danmaku.DanPlayer;
 import com.fongmi.android.tv.player.exo.ErrorMsgProvider;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.player.exo.TrackUtil;
 import com.fongmi.android.tv.server.Server;
+import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.utils.FileUtil;
-import com.fongmi.android.tv.utils.ImgUtil;
-import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.UrlUtil;
 import com.fongmi.android.tv.utils.Util;
@@ -90,9 +73,8 @@ public class Players implements Player.Listener, ParseCallback {
     private final Runnable runnable;
 
     private Map<String, String> headers;
-    private MediaSessionCompat session;
     private List<Danmaku> danmakus;
-    private ExoPlayer exoPlayer;
+    private MediaController controller;
     private DanPlayer danPlayer;
     private ParseJob parseJob;
     private PlayerView view;
@@ -104,9 +86,11 @@ public class Players implements Player.Listener, ParseCallback {
     private String url;
     private Drm drm;
     private Sub sub;
+    private String metaTitle;
+    private String metaArtist;
+    private String metaArtUri;
 
     private boolean initTrack;
-    private int decode;
     private int retry;
 
     public static Players create(Activity activity) {
@@ -116,57 +100,34 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     private Players(Activity activity) {
-        decode = HARD;
         builder = new StringBuilder();
         provider = new ErrorMsgProvider();
         runnable = () -> ErrorEvent.timeout(tag);
         formatter = new Formatter(builder, Locale.getDefault());
         audioManager = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
-        createSession(activity);
     }
 
-    private void createSession(Activity activity) {
-        session = new MediaSessionCompat(activity, "TV");
-        session.setCallback(SessionCallback.create(this));
-        session.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
-        session.setSessionActivity(PendingIntent.getActivity(App.get(), 0, new Intent(App.get(), activity.getClass()), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
-        MediaControllerCompat.setMediaController(activity, session.getController());
-    }
-
-    private void releaseSession() {
-        session.setActive(false);
-        session.release();
+    public void setController(MediaController controller) {
+        this.controller = controller;
+        controller.addListener(this);
+        if (view != null) view.setPlayer(controller);
     }
 
     public void init(PlayerView view) {
-        releasePlayer();
-        setPlayer(view);
+        if (controller != null) controller.clearMediaItems();
         setMediaItem();
-    }
-
-    private void setPlayer(PlayerView view) {
-        exoPlayer = new ExoPlayer.Builder(App.get()).setLoadControl(ExoUtil.buildLoadControl()).setTrackSelector(ExoUtil.buildTrackSelector()).setRenderersFactory(ExoUtil.buildRenderersFactory(isHard() ? EXTENSION_RENDERER_MODE_ON : EXTENSION_RENDERER_MODE_PREFER)).setMediaSourceFactory(ExoUtil.buildMediaSourceFactory()).build();
-        if (BuildConfig.DEBUG) exoPlayer.addAnalyticsListener(new EventLogger());
-        exoPlayer.setAudioAttributes(AudioAttributes.DEFAULT, true);
-        exoPlayer.setHandleAudioBecomingNoisy(true);
-        exoPlayer.setPlayWhenReady(true);
-        exoPlayer.addListener(this);
-        view.setPlayer(exoPlayer);
         this.view = view;
+        if (controller != null) view.setPlayer(controller);
     }
 
     public void setDanmakuView(DanmakuView view) {
         danPlayer = new DanPlayer();
-        danPlayer.setPlayer(this);
+        if (controller != null) danPlayer.setPlayer(controller);
         danPlayer.setView(view);
     }
 
-    public ExoPlayer get() {
-        return exoPlayer;
-    }
-
-    public MediaSessionCompat getSession() {
-        return session;
+    public MediaController get() {
+        return controller;
     }
 
     public List<Danmaku> getDanmakus() {
@@ -213,7 +174,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public void clearMediaItems() {
-        if (exoPlayer != null) exoPlayer.clearMediaItems();
+        if (controller != null) controller.clearMediaItems();
     }
 
     public void clear() {
@@ -238,23 +199,23 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public float getSpeed() {
-        return exoPlayer == null ? 1.0f : exoPlayer.getPlaybackParameters().speed;
+        return controller == null ? 1.0f : controller.getPlaybackParameters().speed;
     }
 
     public long getPosition() {
-        return exoPlayer == null ? C.TIME_UNSET : exoPlayer.getCurrentPosition();
+        return controller == null ? androidx.media3.common.C.TIME_UNSET : controller.getCurrentPosition();
     }
 
     public long getDuration() {
-        return exoPlayer == null ? -1 : exoPlayer.getDuration();
+        return controller == null ? -1 : controller.getDuration();
     }
 
     public long getBuffered() {
-        return exoPlayer == null ? 0 : exoPlayer.getBufferedPosition();
+        return controller == null ? 0 : controller.getBufferedPosition();
     }
 
     public boolean haveTrack(int type) {
-        return exoPlayer != null && TrackUtil.count(exoPlayer.getCurrentTracks(), type) > 0;
+        return controller != null && TrackUtil.count(controller.getCurrentTracks(), type) > 0;
     }
 
     public boolean haveDanmaku() {
@@ -271,15 +232,15 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public boolean isPlaying() {
-        return exoPlayer != null && exoPlayer.isPlaying();
+        return controller != null && controller.isPlaying();
     }
 
     public boolean isEnded() {
-        return exoPlayer != null && exoPlayer.getPlaybackState() == Player.STATE_ENDED;
+        return controller != null && controller.getPlaybackState() == Player.STATE_ENDED;
     }
 
     public boolean isIdle() {
-        return exoPlayer != null && exoPlayer.getPlaybackState() == Player.STATE_IDLE;
+        return controller != null && controller.getPlaybackState() == Player.STATE_IDLE;
     }
 
     public boolean isEmpty() {
@@ -287,15 +248,15 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public boolean isLive() {
-        return getDuration() < TimeUnit.MINUTES.toMillis(1) || exoPlayer.isCurrentMediaItemLive();
+        return getDuration() < TimeUnit.MINUTES.toMillis(1) || (controller != null && controller.isCurrentMediaItemLive());
     }
 
     public boolean isVod() {
-        return getDuration() > TimeUnit.MINUTES.toMillis(1) && !exoPlayer.isCurrentMediaItemLive();
+        return getDuration() > TimeUnit.MINUTES.toMillis(1) && (controller == null || !controller.isCurrentMediaItemLive());
     }
 
     public boolean isHard() {
-        return decode == HARD;
+        return PlaybackService.getDecode() == PlaybackService.HARD;
     }
 
     public boolean isPortrait() {
@@ -315,12 +276,12 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public String getDecodeText() {
-        return ResUtil.getStringArray(R.array.select_decode)[decode];
+        return ResUtil.getStringArray(R.array.select_decode)[PlaybackService.getDecode()];
     }
 
     public String setSpeed(float speed) {
-        if (exoPlayer == null || !exoPlayer.isCommandAvailable(COMMAND_SET_SPEED_AND_PITCH)) return getSpeedText();
-        exoPlayer.setPlaybackParameters(exoPlayer.getPlaybackParameters().withSpeed(speed));
+        if (controller == null || !controller.isCommandAvailable(COMMAND_SET_SPEED_AND_PITCH)) return getSpeedText();
+        controller.setPlaybackParameters(controller.getPlaybackParameters().withSpeed(speed));
         return getSpeedText();
     }
 
@@ -350,8 +311,11 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public void toggleDecode() {
-        decode = isHard() ? SOFT : HARD;
-        init(view);
+        if (controller != null) {
+            controller.sendCustomCommand(
+                    new androidx.media3.session.SessionCommand(PlaybackService.ACTION_TOGGLE_DECODE, Bundle.EMPTY),
+                    Bundle.EMPTY);
+        }
     }
 
     public String getPositionTime(long time) {
@@ -372,49 +336,48 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public void seekTo(long time) {
-        if (exoPlayer != null) exoPlayer.seekTo(time);
+        if (controller != null) controller.seekTo(time);
         if (danPlayer != null) danPlayer.seekTo(time);
     }
 
     public void seekToDefaultPosition() {
-        if (exoPlayer != null) exoPlayer.seekToDefaultPosition();
+        if (controller != null) controller.seekToDefaultPosition();
         prepare();
     }
 
     public void prepare() {
-        if (exoPlayer != null) exoPlayer.prepare();
+        if (controller != null) controller.prepare();
     }
 
     public void play() {
-        if (exoPlayer != null) exoPlayer.play();
+        if (controller != null) controller.play();
         if (danPlayer != null) danPlayer.play();
     }
 
     public void pause() {
-        if (exoPlayer != null) exoPlayer.pause();
+        if (controller != null) controller.pause();
         if (danPlayer != null) danPlayer.pause();
     }
 
     public void stop() {
-        if (exoPlayer != null) exoPlayer.stop();
+        if (controller != null) controller.stop();
         if (danPlayer != null) danPlayer.stop();
         stopParse();
     }
 
     public void release() {
         stopParse();
-        releasePlayer();
-        releaseSession();
+        if (danPlayer != null) danPlayer.release();
+        if (view != null) view.setPlayer(null);
+        if (controller != null) {
+            controller.removeListener(this);
+            controller = null;
+        }
         removeTimeoutCheck();
         Server.get().setPlayer(null);
         App.execute(() -> Source.get().stop());
-    }
-
-    private void releasePlayer() {
-        if (exoPlayer != null) exoPlayer.release();
-        if (danPlayer != null) danPlayer.release();
-        if (view != null) view.setPlayer(null);
-        exoPlayer = null;
+        view = null;
+        size = null;
     }
 
     private void removeTimeoutCheck() {
@@ -422,7 +385,7 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public void start(Result result, boolean useParse, long timeout) {
-        if (result.getDrm() != null && !FrameworkMediaDrm.isCryptoSchemeSupported(result.getDrm().getUUID())) {
+        if (result.getDrm() != null && !androidx.media3.exoplayer.drm.FrameworkMediaDrm.isCryptoSchemeSupported(result.getDrm().getUUID())) {
             ErrorEvent.drm(tag);
         } else if (result.hasMsg()) {
             ErrorEvent.extract(tag, result.getMsg());
@@ -479,14 +442,26 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     private void setMediaItem(Map<String, String> headers, String url, String format, Drm drm, List<Sub> subs, List<Danmaku> danmakus, long timeout) {
-        if (exoPlayer != null) exoPlayer.setMediaItem(ExoUtil.getMediaItem(this.headers = checkUa(headers), UrlUtil.uri(this.url = url), this.format = format, this.drm = drm, checkSub(this.subs = subs), decode));
+        if (controller == null) return;
+        MediaItem mediaItem = ExoUtil.getMediaItem(this.headers = checkUa(headers), UrlUtil.uri(this.url = url), this.format = format, this.drm = drm, checkSub(this.subs = subs), PlaybackService.getDecode());
+        if (metaTitle != null || metaArtist != null || metaArtUri != null) {
+            mediaItem = mediaItem.buildUpon().setMediaMetadata(buildMediaMetadata()).build();
+        }
+        controller.setMediaItem(mediaItem);
         Logger.t(TAG).d("headers=%s\nurl=%s\nformat=%s\ndrm=%s\nsubs=%s\ndanmakus=%s\ntimeout=%s", this.headers, url, format, drm, this.subs, danmakus, timeout);
         if (danPlayer != null) setDanmaku(this.danmakus = danmakus);
         App.post(runnable, timeout);
         PlayerEvent.prepare(tag);
-        session.setActive(true);
         initTrack = false;
         prepare();
+    }
+
+    private MediaMetadata buildMediaMetadata() {
+        MediaMetadata.Builder mb = new MediaMetadata.Builder();
+        if (metaTitle != null) mb.setTitle(metaTitle);
+        if (metaArtist != null) mb.setArtist(metaArtist);
+        if (metaArtUri != null && !metaArtUri.isEmpty()) mb.setArtworkUri(Uri.parse(metaArtUri));
+        return mb.build();
     }
 
     private void setDanmaku(List<Danmaku> items) {
@@ -505,16 +480,11 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public void resetTrack() {
-        if (exoPlayer != null) TrackUtil.reset(exoPlayer);
+        if (controller != null) TrackUtil.reset(controller);
     }
 
     public void setTrack(List<Track> tracks) {
-        if (exoPlayer != null && !tracks.isEmpty()) TrackUtil.setTrackSelection(exoPlayer, tracks);
-    }
-
-    private void setPlaybackState(int state) {
-        long actions = PlaybackStateCompat.ACTION_SEEK_TO | PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_SKIP_TO_NEXT | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS;
-        session.setPlaybackState(new PlaybackStateCompat.Builder().setActions(actions).setState(state, getPosition(), getSpeed()).build());
+        if (controller != null && !tracks.isEmpty()) TrackUtil.setTrackSelection(controller, tracks);
     }
 
     private boolean isIllegal(String url) {
@@ -526,32 +496,12 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     public void setMetadata(String title, String artist, String artUri) {
-        MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder();
-        builder.putString(MediaMetadataCompat.METADATA_KEY_TITLE, title);
-        builder.putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist);
-        builder.putString(MediaMetadataCompat.METADATA_KEY_ART_URI, artUri);
-        builder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, artUri);
-        builder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON_URI, artUri);
-        builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, getDuration());
-        putBitmap(builder, artUri);
-    }
-
-    private void putBitmap(MediaMetadataCompat.Builder builder, String artUri) {
-        ImgUtil.load(artUri, new CustomTarget<>() {
-            @Override
-            public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-                builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, resource);
-                session.setMetadata(builder.build());
-                ActionEvent.update();
-            }
-
-            @Override
-            public void onLoadFailed(@Nullable Drawable errorDrawable) {
-                builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, ((BitmapDrawable) errorDrawable).getBitmap());
-                session.setMetadata(builder.build());
-                ActionEvent.update();
-            }
-        });
+        this.metaTitle = title;
+        this.metaArtist = artist;
+        this.metaArtUri = artUri;
+        if (controller == null || controller.getCurrentMediaItem() == null) return;
+        MediaItem updated = controller.getCurrentMediaItem().buildUpon().setMediaMetadata(buildMediaMetadata()).build();
+        controller.replaceMediaItem(0, updated);
     }
 
     public void share(Activity activity, CharSequence title) {
@@ -597,7 +547,7 @@ public class Players implements Player.Listener, ParseCallback {
             if (data == null || data.getExtras() == null) return;
             int position = data.getExtras().getInt("position", 0);
             String endBy = data.getExtras().getString("end_by", "");
-            if ("playback_completion".equals(endBy)) ActionEvent.next();
+            if ("playback_completion".equals(endBy)) com.fongmi.android.tv.event.ActionEvent.next();
             if ("user".equals(endBy)) seekTo(position);
         } catch (Exception e) {
             e.printStackTrace();
@@ -606,7 +556,7 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onParseSuccess(Map<String, String> headers, String url, String from) {
-        if (!TextUtils.isEmpty(from)) Notify.show(ResUtil.getString(R.string.parse_from, from));
+        if (!TextUtils.isEmpty(from)) com.fongmi.android.tv.utils.Notify.show(ResUtil.getString(R.string.parse_from, from));
         if (headers != null) headers.remove(HttpHeaders.RANGE);
         setMediaItem(headers, url);
     }
@@ -617,29 +567,9 @@ public class Players implements Player.Listener, ParseCallback {
     }
 
     @Override
-    public void onEvents(@NonNull Player player, @NonNull Player.Events events) {
-        if (!events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_POSITION_DISCONTINUITY, Player.EVENT_MEDIA_METADATA_CHANGED, Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_PLAY_WHEN_READY_CHANGED, Player.EVENT_PLAYBACK_PARAMETERS_CHANGED, Player.EVENT_PLAYER_ERROR)) return;
-        switch (player.getPlaybackState()) {
-            case Player.STATE_IDLE:
-                setPlaybackState(events.contains(Player.EVENT_PLAYER_ERROR) ? PlaybackStateCompat.STATE_ERROR : PlaybackStateCompat.STATE_NONE);
-                break;
-            case Player.STATE_READY:
-                setPlaybackState(player.isPlaying() ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED);
-                break;
-            case Player.STATE_BUFFERING:
-                setPlaybackState(PlaybackStateCompat.STATE_BUFFERING);
-                break;
-            case Player.STATE_ENDED:
-                setPlaybackState(PlaybackStateCompat.STATE_STOPPED);
-                break;
-        }
-    }
-
-    @Override
     public void onIsPlayingChanged(boolean isPlaying) {
         if (isPlaying() && audioManager != null && audioManager.getMode() == AudioManager.MODE_IN_COMMUNICATION) pause();
         PlayerEvent.playing(tag);
-        ActionEvent.update();
     }
 
     @Override

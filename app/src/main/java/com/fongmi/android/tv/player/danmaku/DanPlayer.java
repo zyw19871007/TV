@@ -4,7 +4,6 @@ import androidx.media3.common.Player;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.bean.Danmaku;
-import com.fongmi.android.tv.player.Players;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.net.OkHttp;
 
@@ -24,7 +23,7 @@ public class DanPlayer implements DrawHandler.Callback {
     private final DanmakuContext context;
     private DanmakuView view;
     private Future<?> future;
-    private Players player;
+    private Player player;
 
     public DanPlayer() {
         context = DanmakuContext.create();
@@ -50,7 +49,7 @@ public class DanPlayer implements DrawHandler.Callback {
         this.view = view;
     }
 
-    public void setPlayer(Players player) {
+    public void setPlayer(Player player) {
         context.setDanmakuSync(new Sync(this.player = player));
     }
 
@@ -122,7 +121,7 @@ public class DanPlayer implements DrawHandler.Callback {
     public void prepared() {
         App.post(() -> {
             boolean playing = player.isPlaying();
-            long position = player.getPosition();
+            long position = player.getCurrentPosition();
             App.execute(() -> {
                 if (!isPrepared()) return;
                 if (playing) view.start(position);

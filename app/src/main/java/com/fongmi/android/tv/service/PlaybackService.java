@@ -1,165 +1,159 @@
 package com.fongmi.android.tv.service;
 
-import android.annotation.SuppressLint;
-import android.app.ActivityManager;
-import android.app.Notification;
-import android.app.Service;
+import static androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON;
+import static androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER;
+
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.ServiceInfo;
-import android.graphics.Bitmap;
-import android.os.Build;
-import android.os.IBinder;
-import android.support.v4.media.MediaMetadataCompat;
+import android.os.Bundle;
 
-import androidx.annotation.DrawableRes;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.StringRes;
-import androidx.core.app.NotificationCompat;
-import androidx.core.app.NotificationManagerCompat;
-import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
-import androidx.media.app.NotificationCompat.MediaStyle;
-import androidx.media.session.MediaButtonReceiver;
-import androidx.palette.graphics.Palette;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.util.EventLogger;
+import androidx.media3.session.MediaSession;
+import androidx.media3.session.MediaSessionService;
+import androidx.media3.session.SessionCommand;
+import androidx.media3.session.SessionResult;
 
-import com.fongmi.android.tv.App;
-import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.event.ActionEvent;
-import com.fongmi.android.tv.player.Players;
-import com.fongmi.android.tv.receiver.ActionReceiver;
-import com.fongmi.android.tv.utils.Notify;
-
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
+import com.fongmi.android.tv.BuildConfig;
+import com.fongmi.android.tv.player.exo.ExoUtil;
+import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.List;
-import java.util.Objects;
 
-public class PlaybackService extends Service {
+public class PlaybackService extends MediaSessionService {
 
-    private static Players player;
+    public static final int SOFT = 0;
+    public static final int HARD = 1;
+    public static final String ACTION_TOGGLE_DECODE = BuildConfig.APPLICATION_ID + ".toggle_decode";
 
-    public static void start(Players player) {
-        ContextCompat.startForegroundService(App.get(), new Intent(App.get(), PlaybackService.class));
-        PlaybackService.player = player;
+    private static volatile PlaybackService instance;
+    private MediaSession mediaSession;
+    private int decode = HARD;
+
+    public static void start(Context context) {
+        ContextCompat.startForegroundService(context, new Intent(context, PlaybackService.class));
     }
 
-    public static void stop() {
-        App.get().stopService(new Intent(App.get(), PlaybackService.class));
+    public static void stop(Context context) {
+        context.stopService(new Intent(context, PlaybackService.class));
     }
 
-    private boolean isNull() {
-        return Objects.isNull(player) || Objects.isNull(player.getSession());
+    public static boolean isRunning() {
+        return instance != null;
     }
 
-    private boolean nonNull() {
-        return Objects.nonNull(player) && Objects.nonNull(player.getSession());
+    @Nullable
+    public static MediaSession getMediaSession() {
+        return instance != null ? instance.mediaSession : null;
     }
 
-    private NotificationManagerCompat getManager() {
-        return NotificationManagerCompat.from(this);
-    }
-
-    private NotificationCompat.Action buildNotificationAction(@DrawableRes int icon, @StringRes int title, String action) {
-        return new NotificationCompat.Action(icon, getString(title), ActionReceiver.getPendingIntent(this, action));
-    }
-
-    private NotificationCompat.Action getPlayPauseAction() {
-        if (nonNull() && player.isPlaying()) return buildNotificationAction(androidx.media3.ui.R.drawable.exo_icon_pause, androidx.media3.ui.R.string.exo_controls_pause_description, ActionEvent.PAUSE);
-        return buildNotificationAction(androidx.media3.ui.R.drawable.exo_icon_play, androidx.media3.ui.R.string.exo_controls_play_description, ActionEvent.PLAY);
-    }
-
-    private MediaMetadataCompat getMetadata() {
-        return isNull() ? null : player.getSession().getController().getMetadata();
-    }
-
-    private String getTitle() {
-        return getMetadata() == null || getMetadata().getString(MediaMetadataCompat.METADATA_KEY_TITLE).isEmpty() ? null : getMetadata().getString(MediaMetadataCompat.METADATA_KEY_TITLE);
-    }
-
-    private String getArtist() {
-        return getMetadata() == null || getMetadata().getString(MediaMetadataCompat.METADATA_KEY_ARTIST).isEmpty() ? null : getMetadata().getString(MediaMetadataCompat.METADATA_KEY_ARTIST);
-    }
-
-    private Bitmap getArt() {
-        return getMetadata() == null ? null : getMetadata().getBitmap(MediaMetadataCompat.METADATA_KEY_ART);
-    }
-
-    private void addAction(NotificationCompat.Builder builder) {
-        builder.addAction(buildNotificationAction(androidx.media3.ui.R.drawable.exo_icon_previous, androidx.media3.ui.R.string.exo_controls_previous_description, ActionEvent.PREV));
-        builder.addAction(getPlayPauseAction());
-        builder.addAction(buildNotificationAction(androidx.media3.ui.R.drawable.exo_icon_next, androidx.media3.ui.R.string.exo_controls_next_description, ActionEvent.NEXT));
-    }
-
-    private Notification buildNotification() {
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, Notify.DEFAULT);
-        builder.setOngoing(false);
-        builder.setColorized(true);
-        builder.setOnlyAlertOnce(true);
-        builder.setContentText(getArtist());
-        builder.setContentTitle(getTitle());
-        builder.setSmallIcon(R.drawable.ic_notification);
-        builder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
-        builder.setDeleteIntent(ActionReceiver.getPendingIntent(this, ActionEvent.STOP));
-        if (nonNull()) builder.setContentIntent(player.getSession().getController().getSessionActivity());
-        if (nonNull()) builder.setStyle(new MediaStyle().setMediaSession(player.getSession().getSessionToken()).setShowActionsInCompactView(0, 1, 2));
-        if (getArt() != null) setIconColor(builder, getArt());
-        addAction(builder);
-        return builder.build();
-    }
-
-    private void setIconColor(NotificationCompat.Builder builder, Bitmap art) {
-        builder.setLargeIcon(art);
-        Palette palette = Palette.from(art).generate();
-        int white = ContextCompat.getColor(this, R.color.white);
-        builder.setColor(palette.getMutedColor(palette.getVibrantColor(white)));
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onActionEvent(ActionEvent event) {
-        if (event.isUpdate()) Notify.show(buildNotification());
+    public static int getDecode() {
+        return instance != null ? instance.decode : HARD;
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
-        EventBus.getDefault().register(this);
+        instance = this;
+        setMediaNotificationProvider(new CustomMediaNotificationProvider(this));
+        mediaSession = new MediaSession.Builder(this, buildPlayer())
+                .setCallback(new SessionCallback())
+                .build();
+    }
+
+    private ExoPlayer buildPlayer() {
+        int mode = decode == HARD ? EXTENSION_RENDERER_MODE_ON : EXTENSION_RENDERER_MODE_PREFER;
+        ExoPlayer player = new ExoPlayer.Builder(this)
+                .setLoadControl(ExoUtil.buildLoadControl())
+                .setTrackSelector(ExoUtil.buildTrackSelector())
+                .setRenderersFactory(ExoUtil.buildRenderersFactory(mode))
+                .setMediaSourceFactory(ExoUtil.buildMediaSourceFactory())
+                .build();
+        if (BuildConfig.DEBUG) player.addAnalyticsListener(new EventLogger());
+        player.setAudioAttributes(AudioAttributes.DEFAULT, true);
+        player.setHandleAudioBecomingNoisy(true);
+        player.setPlayWhenReady(true);
+        return player;
+    }
+
+    void toggleDecode() {
+        Player currentPlayer = mediaSession.getPlayer();
+        MediaItem currentItem = currentPlayer.getCurrentMediaItem();
+        long currentPosition = currentPlayer.getCurrentPosition();
+        boolean wasReady = currentPlayer.getPlaybackState() != Player.STATE_IDLE;
+        decode = decode == HARD ? SOFT : HARD;
+        ExoPlayer newPlayer = buildPlayer();
+        if (currentItem != null && wasReady) {
+            newPlayer.setMediaItem(currentItem);
+            newPlayer.seekTo(currentPosition);
+            newPlayer.prepare();
+        }
+        mediaSession.setPlayer(newPlayer);
+        currentPlayer.release();
+    }
+
+    @Nullable
+    @Override
+    public MediaSession onGetSession(@NonNull MediaSession.ControllerInfo controllerInfo) {
+        return mediaSession;
     }
 
     @Override
-    @SuppressLint("ForegroundServiceType")
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        if (nonNull()) MediaButtonReceiver.handleIntent(player.getSession(), intent);
-        int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK : 0;
-        ServiceCompat.startForeground(this, Notify.ID, buildNotification(), type);
-        return START_NOT_STICKY;
-    }
-
-    @Override
-    public void onTaskRemoved(Intent rootIntent) {
+    public void onTaskRemoved(@Nullable Intent rootIntent) {
         stopSelf();
     }
 
     @Override
     public void onDestroy() {
-        EventBus.getDefault().unregister(this);
-        getManager().cancel(Notify.ID);
-        stopForeground(true);
+        instance = null;
+        if (mediaSession != null) {
+            mediaSession.getPlayer().release();
+            mediaSession.release();
+            mediaSession = null;
+        }
+        super.onDestroy();
     }
 
-    @Nullable
-    @Override
-    public IBinder onBind(Intent intent) {
-        return null;
-    }
+    private class SessionCallback implements MediaSession.Callback {
 
-    public static boolean isRunning() {
-        ActivityManager manager = (ActivityManager) App.get().getSystemService(Context.ACTIVITY_SERVICE);
-        List<ActivityManager.RunningServiceInfo> services = manager.getRunningServices(Integer.MAX_VALUE);
-        if (services == null || services.isEmpty()) return false;
-        String clz = PlaybackService.class.getName();
-        return services.stream().anyMatch(serviceInfo -> clz.equals(serviceInfo.service.getClassName()));
+        @NonNull
+        @Override
+        public MediaSession.ConnectionResult onConnect(@NonNull MediaSession session, @NonNull MediaSession.ControllerInfo controller) {
+            androidx.media3.session.SessionCommands sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
+                    .buildUpon()
+                    .add(new SessionCommand(ACTION_TOGGLE_DECODE, Bundle.EMPTY))
+                    .build();
+            return MediaSession.ConnectionResult.accept(sessionCommands, MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS);
+        }
+
+        @NonNull
+        @Override
+        public ListenableFuture<List<MediaItem>> onAddMediaItems(@NonNull MediaSession session, @NonNull MediaSession.ControllerInfo controller, @NonNull List<MediaItem> mediaItems) {
+            return Futures.immediateFuture(ImmutableList.copyOf(mediaItems));
+        }
+
+        @NonNull
+        @Override
+        public ListenableFuture<MediaSession.MediaItemsWithStartPosition> onSetMediaItems(@NonNull MediaSession session, @NonNull MediaSession.ControllerInfo controller, @NonNull List<MediaItem> mediaItems, int startIndex, long startPositionMs) {
+            return Futures.immediateFuture(new MediaSession.MediaItemsWithStartPosition(ImmutableList.copyOf(mediaItems), startIndex, startPositionMs));
+        }
+
+        @NonNull
+        @Override
+        public ListenableFuture<SessionResult> onCustomCommand(@NonNull MediaSession session, @NonNull MediaSession.ControllerInfo controller, @NonNull SessionCommand customCommand, @NonNull Bundle args) {
+            if (ACTION_TOGGLE_DECODE.equals(customCommand.customAction)) {
+                toggleDecode();
+                return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+            }
+            return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED));
+        }
     }
 }

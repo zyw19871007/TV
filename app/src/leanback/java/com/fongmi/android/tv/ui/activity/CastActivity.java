@@ -13,7 +13,10 @@ import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
+import androidx.core.content.ContextCompat;
 import androidx.media3.common.Player;
+import androidx.media3.session.MediaController;
+import androidx.media3.session.SessionToken;
 import androidx.viewbinding.ViewBinding;
 
 import com.android.cast.dlna.dmr.CastAction;
@@ -44,6 +47,8 @@ import com.fongmi.android.tv.utils.KeyUtil;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Traffic;
 
+import com.google.common.util.concurrent.ListenableFuture;
+
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
@@ -57,6 +62,7 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
     private CustomKeyDownVod mKeyDown;
     private RenderState mState;
     private CastAction mAction;
+    private ListenableFuture<MediaController> controllerFuture;
     private Players mPlayers;
     private Runnable mR1;
     private Runnable mR2;
@@ -147,7 +153,12 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
 
     private void setVideoView() {
         mPlayers.init(mBinding.exo);
-        PlaybackService.start(mPlayers);
+        PlaybackService.start(this);
+        SessionToken token = new SessionToken(this, new ComponentName(this, PlaybackService.class));
+        controllerFuture = new MediaController.Builder(this, token).buildAsync();
+        controllerFuture.addListener(() -> {
+            try { mPlayers.setController(controllerFuture.get()); } catch (Exception ignored) {}
+        }, ContextCompat.getMainExecutor(this));
         setScale(scale = Setting.getScale());
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setTag(tag = UUID.randomUUID().toString());
@@ -545,7 +556,8 @@ public class CastActivity extends BaseActivity implements CustomKeyDownVod.Liste
         mClock.release();
         mPlayers.release();
         unbindService(this);
-        PlaybackService.stop();
+        if (controllerFuture != null) MediaController.releaseFuture(controllerFuture);
+        PlaybackService.stop(this);
         mService.bindRealPlayer(null);
         App.removeCallbacks(mR1, mR2);
         super.onDestroy();

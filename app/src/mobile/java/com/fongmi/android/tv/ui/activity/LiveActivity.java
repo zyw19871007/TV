@@ -2,6 +2,7 @@ package com.fongmi.android.tv.ui.activity;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
@@ -16,7 +17,10 @@ import androidx.annotation.Nullable;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.C;
+import androidx.core.content.ContextCompat;
 import androidx.media3.common.Player;
+import androidx.media3.session.MediaController;
+import androidx.media3.session.SessionToken;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 
@@ -71,6 +75,8 @@ import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Traffic;
 import com.fongmi.android.tv.utils.Util;
 
+import com.google.common.util.concurrent.ListenableFuture;
+
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
@@ -90,6 +96,7 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
     private LiveViewModel mViewModel;
     private CustomKeyDown mKeyDown;
     private List<Group> mHides;
+    private ListenableFuture<MediaController> controllerFuture;
     private Players mPlayers;
     private Channel mChannel;
     private Group mGroup;
@@ -202,7 +209,12 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
 
     private void setVideoView() {
         mPlayers.init(mBinding.exo);
-        PlaybackService.start(mPlayers);
+        PlaybackService.start(this);
+        SessionToken token = new SessionToken(this, new ComponentName(this, PlaybackService.class));
+        controllerFuture = new MediaController.Builder(this, token).buildAsync();
+        controllerFuture.addListener(() -> {
+            try { mPlayers.setController(controllerFuture.get()); } catch (Exception ignored) {}
+        }, ContextCompat.getMainExecutor(this));
         setScale(Setting.getLiveScale());
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setTag(tag = UUID.randomUUID().toString());
@@ -1160,7 +1172,8 @@ public class LiveActivity extends BaseActivity implements CustomKeyDown.Listener
     protected void onDestroy() {
         mPlayers.release();
         Source.get().exit();
-        PlaybackService.stop();
+        if (controllerFuture != null) MediaController.releaseFuture(controllerFuture);
+        PlaybackService.stop(this);
         App.removeCallbacks(mR1, mR2, mR3);
         mViewModel.url.removeObserver(mObserveUrl);
         mViewModel.epg.removeObserver(mObserveEpg);

@@ -3,6 +3,7 @@ package com.fongmi.android.tv.ui.activity;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
@@ -31,7 +32,10 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.C;
+import androidx.core.content.ContextCompat;
 import androidx.media3.common.Player;
+import androidx.media3.session.MediaController;
+import androidx.media3.session.SessionToken;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.transition.ChangeBounds;
 import androidx.transition.TransitionManager;
@@ -99,6 +103,7 @@ import com.fongmi.android.tv.utils.Util;
 import com.github.bassaer.library.MDColor;
 import com.github.catvod.utils.Trans;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
+import com.google.common.util.concurrent.ListenableFuture;
 
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
@@ -130,6 +135,7 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
     private CustomKeyDown mKeyDown;
     private List<String> mBroken;
     private History mHistory;
+    private ListenableFuture<MediaController> controllerFuture;
     private Players mPlayers;
     private boolean fullscreen;
     private boolean audioOnly;
@@ -377,7 +383,12 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
 
     private void setVideoView() {
         mPlayers.init(mBinding.exo);
-        PlaybackService.start(mPlayers);
+        PlaybackService.start(this);
+        SessionToken token = new SessionToken(this, new ComponentName(this, PlaybackService.class));
+        controllerFuture = new MediaController.Builder(this, token).buildAsync();
+        controllerFuture.addListener(() -> {
+            try { mPlayers.setController(controllerFuture.get()); } catch (Exception ignored) {}
+        }, ContextCompat.getMainExecutor(this));
         ExoUtil.setSubtitleView(mBinding.exo);
         mPlayers.setDanmakuView(mBinding.danmaku);
         mPlayers.setTag(tag = UUID.randomUUID().toString());
@@ -1686,7 +1697,8 @@ public class VideoActivity extends BaseActivity implements Clock.Callback, Custo
         Timer.get().reset();
         RefreshEvent.keep();
         RefreshEvent.history();
-        PlaybackService.stop();
+        if (controllerFuture != null) MediaController.releaseFuture(controllerFuture);
+        PlaybackService.stop(this);
         App.removeCallbacks(mR1, mR2, mR3, mR4);
         mViewModel.result.removeObserver(mObserveDetail);
         mViewModel.player.removeObserver(mObservePlayer);
