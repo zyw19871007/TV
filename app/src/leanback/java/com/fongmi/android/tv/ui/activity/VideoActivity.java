@@ -986,6 +986,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         if (mHistory == null || Setting.isIncognito()) return;
         if (mHistory.getPosition() > 0 && mHistory.getDuration() > 0) {
             App.execute(() -> mHistory.merge().save());
+            App.execute(() -> ShadowUtil.saveHistory(mHistory));
         }
     }
 

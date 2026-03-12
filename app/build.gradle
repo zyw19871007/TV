@@ -3,6 +3,38 @@ plugins {
 }
 
 android {
+    // 定义源集
+    sourceSets {
+        // 主源集（默认）
+        main {
+            java.srcDirs = ['src/main/java']
+            res.srcDirs = ['src/main/res']
+            manifest.srcFile 'src/main/AndroidManifest.xml'
+            assets.srcDirs = ['src/main/assets']
+        }
+
+        // 配置 mobile 源集
+        mobile {
+            java.srcDirs = ['src/mobile/java']
+            res.srcDirs = ['src/mobile/res']
+            manifest.srcFile 'src/mobile/AndroidManifest.xml'
+        }
+
+        // 配置 leanback 源集（如果需要）
+        leanback {
+            java.srcDirs = ['src/leanback/java']
+            res.srcDirs = ['src/leanback/res']
+            manifest.srcFile 'src/leanback/AndroidManifest.xml'
+        }
+    }
+    signingConfigs {
+        debug {
+            storeFile file('D:\\workspace\\video_manage\\shadow.jks')
+            storePassword '570865'
+            keyAlias 'my_alias'
+            keyPassword '570865'
+        }
+    }
     namespace 'com.fongmi.android.tv'
 
     compileSdk {
