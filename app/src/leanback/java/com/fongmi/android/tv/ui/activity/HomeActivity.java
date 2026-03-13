@@ -110,6 +110,7 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
     protected void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
+        ShadowUtil.insertHistoryFromUrl();
     }
 
     @Override
@@ -287,7 +288,7 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
         int recommendIndex = getRecommendIndex();
         boolean exist = recommendIndex - historyIndex == 2;
         if (renew) mHistoryAdapter = new ArrayObjectAdapter(mPresenter = new HistoryPresenter(this));
-        if ((items.isEmpty() && exist) || (renew && exist)) mAdapter.removeItems(historyIndex, 1);
+//        if ((items.isEmpty() && exist) || (renew && exist)) mAdapter.removeItems(historyIndex, 1);
         if ((!items.isEmpty() && !exist) || (renew && exist)) mAdapter.add(historyIndex, new ListRow(mHistoryAdapter));
         mHistoryAdapter.setItems(items, new BaseDiffCallback<History>());
     }
