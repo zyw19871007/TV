@@ -70,7 +70,7 @@ public class ShadowUtil {
                         if (video_map.containsKey(video_id)) continue;
                         video_map.put(video_id, video_id);
                         History history = new History();
-
+                        history.setVodPic("");
                         history.setCid(VodConfig.getCid());
                         history.setVodName(item.optString("title"));
                         history.setVodFlag(item.optString("source"));
