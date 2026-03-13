@@ -12,7 +12,9 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 
 import okhttp3.MediaType;
@@ -58,11 +60,15 @@ public class ShadowUtil {
                         .get()
                         .build();
                 Response response = OK_HTTP_CLIENT.newCall(request).execute();
+                Map<String, String> video_map = new HashMap<>();
                 if (response.isSuccessful()) {
                     JSONObject json = new JSONObject(response.body().string());
                     JSONArray items = json.getJSONObject("data").getJSONArray("items");
                     for (int i = 0; i < items.length(); i++) {
                         JSONObject item = items.getJSONObject(i);
+                        String video_id = item.optString("video_id");
+                        if(video_map.containsKey(video_id)) continue;
+                        video_map.put(video_id, video_id);
                         History history = new History();
 
                         history.setCid(VodConfig.getCid());

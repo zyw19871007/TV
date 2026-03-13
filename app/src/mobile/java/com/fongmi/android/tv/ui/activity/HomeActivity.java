@@ -69,6 +69,7 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     protected void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
+        ShadowUtil.insertHistoryFromUrl();
     }
 
     @Override
