@@ -26,6 +26,7 @@ import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.Timeline;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -109,6 +110,8 @@ public class Players implements Player.Listener, ParseCallback {
     private int decode;
     private int retry;
 
+    private List<TsListParser.TsSegment> adSegments;
+
     public static Players create(Activity activity) {
         Players player = new Players(activity);
         Server.get().setPlayer(player);
@@ -142,6 +145,7 @@ public class Players implements Player.Listener, ParseCallback {
         releasePlayer();
         setPlayer(view);
         setMediaItem();
+        adSegments = TsListParser.getAdTsSegments(this);
     }
 
     private void setPlayer(PlayerView view) {
@@ -464,6 +468,7 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void setMediaItem() {
         if (url != null) setMediaItem(headers, url, format, drm, subs, danmakus, Constant.TIMEOUT_PLAY);
+        adSegments = TsListParser.getAdTsSegments(this);
     }
 
     public void setMediaItem(String url) {
@@ -602,6 +607,12 @@ public class Players implements Player.Listener, ParseCallback {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void onTimelineChanged(Timeline timeline, int reason) {
+        Player.Listener.super.onTimelineChanged(timeline, reason);
+        TsListParser.handleAdSkipOnTimelineChanged(this, adSegments);
     }
 
     @Override
