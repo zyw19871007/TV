@@ -110,7 +110,7 @@ public class Players implements Player.Listener, ParseCallback {
     private int decode;
     private int retry;
 
-    private List<TsListParser.TsSegment> adSegments;
+    private TsListParser tsListParser;
 
     public static Players create(Activity activity) {
         Players player = new Players(activity);
@@ -145,7 +145,7 @@ public class Players implements Player.Listener, ParseCallback {
         releasePlayer();
         setPlayer(view);
         setMediaItem();
-        adSegments = TsListParser.getAdTsSegments(this);
+        tsListParser = new TsListParser(this);
     }
 
     private void setPlayer(PlayerView view) {
@@ -491,7 +491,7 @@ public class Players implements Player.Listener, ParseCallback {
         session.setActive(true);
         initTrack = false;
         prepare();
-        adSegments = TsListParser.getAdTsSegments(this);
+        tsListParser.setVideo(headers,url);
     }
 
     private void setDanmaku(List<Danmaku> items) {
@@ -609,11 +609,6 @@ public class Players implements Player.Listener, ParseCallback {
         }
     }
 
-    @Override
-    public void onTimelineChanged(Timeline timeline, int reason) {
-        Player.Listener.super.onTimelineChanged(timeline, reason);
-        TsListParser.handleAdSkipOnTimelineChanged(this, adSegments);
-    }
 
     @Override
     public void onParseSuccess(Map<String, String> headers, String url, String from) {
@@ -629,7 +624,10 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onEvents(@NonNull Player player, @NonNull Player.Events events) {
-        if (!events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_POSITION_DISCONTINUITY, Player.EVENT_MEDIA_METADATA_CHANGED, Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_PLAY_WHEN_READY_CHANGED, Player.EVENT_PLAYBACK_PARAMETERS_CHANGED, Player.EVENT_PLAYER_ERROR)) return;
+        if (events.contains(Player.EVENT_TIMELINE_CHANGED)){
+            tsListParser.handleAdSkipOnTimelineChanged();
+        }
+        if (!events.containsAny(Player.EVENT_TIMELINE_CHANGED,Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_POSITION_DISCONTINUITY, Player.EVENT_MEDIA_METADATA_CHANGED, Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_PLAY_WHEN_READY_CHANGED, Player.EVENT_PLAYBACK_PARAMETERS_CHANGED, Player.EVENT_PLAYER_ERROR)) return;
         switch (player.getPlaybackState()) {
             case Player.STATE_IDLE:
                 setPlaybackState(events.contains(Player.EVENT_PLAYER_ERROR) ? PlaybackStateCompat.STATE_ERROR : PlaybackStateCompat.STATE_NONE);

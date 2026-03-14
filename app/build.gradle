@@ -27,14 +27,7 @@ android {
             manifest.srcFile 'src/leanback/AndroidManifest.xml'
         }
     }
-    signingConfigs {
-        debug {
-            storeFile file('D:\\workspace\\video_manage\\shadow.jks')
-            storePassword '570865'
-            keyAlias 'my_alias'
-            keyPassword '570865'
-        }
-    }
+
     namespace 'com.fongmi.android.tv'
 
     compileSdk {
