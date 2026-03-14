@@ -468,7 +468,6 @@ public class Players implements Player.Listener, ParseCallback {
 
     public void setMediaItem() {
         if (url != null) setMediaItem(headers, url, format, drm, subs, danmakus, Constant.TIMEOUT_PLAY);
-        adSegments = TsListParser.getAdTsSegments(this);
     }
 
     public void setMediaItem(String url) {
@@ -492,6 +491,7 @@ public class Players implements Player.Listener, ParseCallback {
         session.setActive(true);
         initTrack = false;
         prepare();
+        adSegments = TsListParser.getAdTsSegments(this);
     }
 
     private void setDanmaku(List<Danmaku> items) {

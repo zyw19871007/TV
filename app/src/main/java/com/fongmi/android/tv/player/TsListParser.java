@@ -36,6 +36,9 @@ public class TsListParser {
                 adSegments.add(segment);
             }
         }
+        if(adSegments.size()>15){
+            adSegments = new ArrayList<>();
+        }
         return adSegments;
     }
 
