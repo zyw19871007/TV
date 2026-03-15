@@ -419,6 +419,7 @@ public class Players implements Player.Listener, ParseCallback {
         if (danPlayer != null) danPlayer.release();
         if (view != null) view.setPlayer(null);
         exoPlayer = null;
+        if (tsListParser != null) tsListParser.stopAdSkipDetection();
     }
 
     private void removeTimeoutCheck() {
@@ -624,9 +625,6 @@ public class Players implements Player.Listener, ParseCallback {
 
     @Override
     public void onEvents(@NonNull Player player, @NonNull Player.Events events) {
-        if (events.contains(Player.EVENT_TIMELINE_CHANGED)){
-            tsListParser.handleAdSkipOnTimelineChanged();
-        }
         if (!events.containsAny(Player.EVENT_TIMELINE_CHANGED,Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_POSITION_DISCONTINUITY, Player.EVENT_MEDIA_METADATA_CHANGED, Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_PLAY_WHEN_READY_CHANGED, Player.EVENT_PLAYBACK_PARAMETERS_CHANGED, Player.EVENT_PLAYER_ERROR)) return;
         switch (player.getPlaybackState()) {
             case Player.STATE_IDLE:
@@ -643,6 +641,9 @@ public class Players implements Player.Listener, ParseCallback {
                 break;
         }
     }
+
+
+
 
     @Override
     public void onIsPlayingChanged(boolean isPlaying) {

@@ -7,12 +7,16 @@ import com.orhanobut.logger.Logger;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
+import java.lang.ref.WeakReference;
 public class TsListParser {
 
     private static final String TAG = "TsListParser";
@@ -24,6 +28,41 @@ public class TsListParser {
 
     List<Integer> discontinuityIndices = new ArrayList<>(); // 仅记录分片分隔位置
 
+    // 广告跳过检测的消息标识
+    private static final int MSG_AD_SKIP_CHECK = 1;
+    // 静态内部类 Handler（避免内存泄漏）
+    private static class AdSkipHandler extends Handler {
+        private final WeakReference<TsListParser> parserRef;
+
+        public AdSkipHandler(TsListParser parser) {
+            super(Looper.getMainLooper()); // 绑定主线程（如需子线程可改为 Looper.myLooper()）
+            this.parserRef = new WeakReference<>(parser);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            TsListParser parser = parserRef.get();
+            if (parser == null) {
+                // 引用已释放，移除所有消息
+                removeMessages(MSG_AD_SKIP_CHECK);
+                return;
+            }
+            if (msg.what == MSG_AD_SKIP_CHECK) {
+                try {
+                    // 执行广告跳过检测
+                    parser.handleAdSkipOnTimelineChanged();
+                    // 延迟 1 秒发送下一次检测消息（实现每秒执行）
+                    sendEmptyMessageDelayed(MSG_AD_SKIP_CHECK, 1000);
+                } catch (Exception e) {
+                    Logger.e(TAG, "Ad skip check failed", e);
+                }
+            }
+        }
+    }
+
+    // 广告跳过检测的 Handler 实例
+    private AdSkipHandler adSkipHandler;
+
     // 仅保留核心构造器
     public TsListParser(Players player) {
         this.player = player;
@@ -34,9 +73,28 @@ public class TsListParser {
         this.headers = headers == null ? Map.of() : headers;
         App.execute(() -> {
             this.adGroups = getAdGroups(); // 改为获取广告组
+            // 1. 先停止之前的定时任务（防止重复）
+            stopAdSkipDetection();
+
+            // 2. 初始化 Handler 并启动每秒检测
+            if (adSkipHandler == null) {
+                adSkipHandler = new AdSkipHandler(this);
+            }
+            // 立即发送第一个检测消息，之后每秒循环
+            adSkipHandler.sendEmptyMessage(MSG_AD_SKIP_CHECK);
+            Logger.d(TAG, "Ad skip check started, interval: 1s");
         });
     }
-
+    /**
+     * 停止广告跳过检测（播放器销毁/切换视频时调用）
+     */
+    public void stopAdSkipDetection() {
+        if (adSkipHandler != null) {
+            adSkipHandler.removeMessages(MSG_AD_SKIP_CHECK);
+            adSkipHandler = null;
+            Logger.d(TAG, "Ad skip check stopped");
+        }
+    }
     /**
      * 核心：解析并提取广告组列表（每个广告组包含起止时间）
      * @return 广告组列表
@@ -273,38 +331,6 @@ public class TsListParser {
         return adGroups;
     }
 
-    /**
-     * 获取EXT-X-DISCONTINUITY对应的分片索引（用于分组）
-     */
-    private List<Integer> getDiscontinuityIndices(String m3u8Content) {
-        List<Integer> indices = new ArrayList<>();
-        String[] lines = m3u8Content.split("\n");
-        int segmentCount = 0;
-        boolean hasDiscontinuity = false;
-
-        for (String line : lines) {
-            line = line.trim();
-            if (line.isEmpty()) continue;
-
-            if (line.equals("#EXT-X-DISCONTINUITY")) {
-                hasDiscontinuity = true;
-                continue;
-            }
-
-            // 跳过注释行（除了EXTINF）
-            if (line.startsWith("#") && !line.startsWith("#EXTINF:")) continue;
-
-            // 遇到TS分片路径，计数+1
-            if (!line.startsWith("#")) {
-                if (hasDiscontinuity) {
-                    indices.add(segmentCount);
-                    hasDiscontinuity = false;
-                }
-                segmentCount++;
-            }
-        }
-        return indices;
-    }
 
     // 获取m3u8基础URL
     @NonNull
@@ -351,8 +377,8 @@ public class TsListParser {
      * 【核心保留】在播放进度变化时检测并跳过广告（适配广告组逻辑）
      */
     public void handleAdSkipOnTimelineChanged() {
-        if (adGroups.isEmpty()) {
-            Logger.w(TAG, "Ad skip: adGroups is empty");
+        if (adGroups.isEmpty() || player == null || player.isEmpty()) {
+            Logger.w(TAG, "Ad skip: adGroups empty or player null");
             return;
         }
 
@@ -361,10 +387,10 @@ public class TsListParser {
             AdGroup currentAdGroup = findCurrentAdGroup(adGroups, currentProgress);
             if (currentAdGroup != null) {
                 long skipToPosition = (long) (currentAdGroup.getEndTime() * 1000);
-                if (Math.abs(skipToPosition - player.get().getCurrentPosition()) > 1000) {
+                if (Math.abs(skipToPosition - player.get().getCurrentPosition()) > 500) {
                     Logger.d(TAG, "Skip ad group: current=%fs, skip to=%fs (ms=%d)",
                             currentProgress, currentAdGroup.getEndTime(), skipToPosition);
-                    player.seekTo(skipToPosition);
+                    player.seekTo(skipToPosition+500);
                 }
             }
         } catch (Exception e) {
@@ -375,7 +401,7 @@ public class TsListParser {
     // 查找当前进度所在的广告组
     private static AdGroup findCurrentAdGroup(List<AdGroup> adGroups, double currentProgress) {
         for (AdGroup adGroup : adGroups) {
-            if (currentProgress >= adGroup.getStartTime() && currentProgress < adGroup.getEndTime()) {
+            if (currentProgress >= (adGroup.getStartTime()-500) && currentProgress < adGroup.getEndTime()) {
                 return adGroup;
             }
         }
