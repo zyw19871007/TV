@@ -401,7 +401,7 @@ public class TsListParser {
     // 查找当前进度所在的广告组
     private static AdGroup findCurrentAdGroup(List<AdGroup> adGroups, double currentProgress) {
         for (AdGroup adGroup : adGroups) {
-            if (currentProgress >= (adGroup.getStartTime()-500) && currentProgress < adGroup.getEndTime()) {
+            if (currentProgress >= (adGroup.getStartTime()) && currentProgress < adGroup.getEndTime()) {
                 return adGroup;
             }
         }
