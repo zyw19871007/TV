@@ -390,7 +390,7 @@ public class TsListParser {
                 if (Math.abs(skipToPosition - player.get().getCurrentPosition()) > 500) {
                     Logger.d(TAG, "Skip ad group: current=%fs, skip to=%fs (ms=%d)",
                             currentProgress, currentAdGroup.getEndTime(), skipToPosition);
-                    player.seekTo(skipToPosition+500);
+                    player.seekTo(skipToPosition);
                 }
             }
         } catch (Exception e) {
