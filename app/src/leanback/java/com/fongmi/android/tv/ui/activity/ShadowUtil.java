@@ -94,7 +94,7 @@ public class ShadowUtil {
             String url = "http://47.93.13.56:11266/api/play-history";
             JSONObject json = new JSONObject();
             json.put("video_id", mHistory.getVodId());
-            json.put("title", mHistory.getVodName());
+            json.put("title", mHistory.getVodName().replaceAll("\\s", ""));
             json.put("source", mHistory.getVodFlag());
             json.put("episode", mHistory.getVodRemarks());
             json.put("watch_time", mHistory.getPosition() / 1000.0);
