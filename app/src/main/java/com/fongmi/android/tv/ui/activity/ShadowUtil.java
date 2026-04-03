@@ -59,6 +59,7 @@ public class ShadowUtil {
                         .header("Content-Type", "application/json; charset=utf-8")
                         .get()
                         .build();
+
                 Response response = OK_HTTP_CLIENT.newCall(request).execute();
                 Map<String, String> video_map = new HashMap<>();
                 if (response.isSuccessful()) {
@@ -94,7 +95,7 @@ public class ShadowUtil {
             String url = "http://47.93.13.56:11266/api/play-history";
             JSONObject json = new JSONObject();
             json.put("video_id", mHistory.getVodId());
-            json.put("title", mHistory.getVodName());
+            json.put("title", mHistory.getVodName().replaceAll("\\s", ""));
             json.put("source", mHistory.getVodFlag());
             json.put("episode", mHistory.getVodRemarks());
             json.put("watch_time", mHistory.getPosition() / 1000.0);
@@ -104,18 +105,7 @@ public class ShadowUtil {
                     json.toString(),
                     MediaType.get("application/json; charset=utf-8"));
 
-            // ========== 核心修改：添加 Authorization Header ==========
-            // // 方式1：如果你的 OkHttp 工具类支持传入 Header Map（适配原有调用方式）
-            // Map<String, String> headers = new HashMap<>();
-            // // 关键：Authorization Header 格式（Bearer + 空格 + Token）
-            // headers.put("Authorization", "Bearer " + BEARER_TOKEN);
-            // // 可选：添加其他通用 Header
-            // headers.put("Content-Type", "application/json; charset=utf-8");
-            // // 调用工具类（替换原有 null 为 headers）
-            // OkHttp.newCall(url, headers, body).execute();
-
             // ========== 备用方案：原生 OkHttp 写法（如果工具类不支持 Header） ==========
-
             Request request = new Request.Builder()
                     .url(url)
                     // 核心：添加 Authorization Header
@@ -134,13 +124,11 @@ public class ShadowUtil {
                     System.err.println("播放记录提交失败，状态码：" + response.code());
                 }
             }
-
         } catch (Exception e) {
             // 补充异常处理（原有代码缺失，建议添加）
             e.printStackTrace();
             System.err.println("提交播放记录异常：" + e.getMessage());
         }
-
     }
-
 }
+
