@@ -492,7 +492,7 @@ public class Players implements Player.Listener, ParseCallback {
         session.setActive(true);
         initTrack = false;
         prepare();
-        tsListParser.setVideo(headers,url);
+        if (Setting.isAdblock()) tsListParser.setVideo(headers,url);
     }
 
     private void setDanmaku(List<Danmaku> items) {
